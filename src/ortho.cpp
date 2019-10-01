@@ -25,9 +25,9 @@ opc_sink sink;
 // SmoothPalettes smoothPalettes;
 RaverPlaid raverPlaid;
 Needles needles;
+Bits bitsPattern;
 
-Pattern *idlePatterns[] = {&raverPlaid, &needles};
-//&centerPulsePattern, &standingWavesPattern, &dropletsPattern, &bitsPattern, &smoothPalettes};
+Pattern *idlePatterns[] = {&raverPlaid, &needles, &bitsPattern};
 const unsigned int kIdlePatternsCount = ARRAY_SIZE(idlePatterns);
 
 Pattern *activePattern = NULL;
@@ -53,12 +53,12 @@ const int fps_cap = 60;
 
 void setup() {
   sink = opc_new_sink((char *)"127.0.0.1:7890");
-  printf("sizeof(short) = %u\n", sizeof(short));
-  printf("sizeof(int) = %u\n", sizeof(int));
-  printf("sizeof(long) = %u\n", sizeof(long));
-  printf("sizeof(long long) = %u\n", sizeof(long long));
-  printf("sizeof(float) = %u\n", sizeof(float));
-  printf("sizeof(double) = %u\n", sizeof(double));
+  printf("sizeof(short) = %lu\n", sizeof(short));
+  printf("sizeof(int) = %lu\n", sizeof(int));
+  printf("sizeof(long) = %lu\n", sizeof(long));
+  printf("sizeof(long long) = %lu\n", sizeof(long long));
+  printf("sizeof(float) = %lu\n", sizeof(float));
+  printf("sizeof(double) = %lu\n", sizeof(double));
 
     FILE *frand = fopen("/dev/urandom","r");
     if (frand != NULL) {
@@ -105,6 +105,7 @@ void loop() {
       nextPattern = testIdlePattern;
     } else {
       int choice = (first_pattern != -1 ? first_pattern : random() % kIdlePatternsCount);
+      first_pattern = -1;
       nextPattern = idlePatterns[choice];
     }
     if ((nextPattern != lastPattern || nextPattern == testIdlePattern) && !nextPattern->isRunning() && !nextPattern->isStopping() && nextPattern->wantsToRun()) {

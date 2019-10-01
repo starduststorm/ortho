@@ -21,6 +21,12 @@ long millis() {
 }
 #endif
 
+#define fadeDownBy(amt)     for (int i = 0; i < NUM_LEDS; ++i) { \
+      pixels[i].r *= (1 - amt); \
+      pixels[i].g *= (1 - amt); \
+      pixels[i].b *= (1 - amt); \
+    }
+
 void logf(const char *format, ...)
 {
   va_list argptr;
@@ -67,22 +73,73 @@ class FrameCounter {
     }
 };
 
+uint8_t random8(uint8_t lowerBound, int upperBound) {
+  return random() % (upperBound - lowerBound) + lowerBound;
+}
+
+uint8_t random8(int upperBound) {
+  return random8(0, upperBound);
+}
+
+uint8_t random8() {
+  return random() % 0x100;
+}
+
 class Color {
 private:
-  void _init(char red, char green, char blue) {
+  void _init(uint8_t red, uint8_t green, uint8_t blue) {
     this->red = red;
     this->green = green;
     this->blue = blue;
   }
-  Color(char red, char green, char blue) {
+  Color(uint8_t red, uint8_t green, uint8_t blue) : _description(NULL) {
     _init(red, green, blue);
   }
+  char *_description = NULL; // cache
 public:
-  char red, green, blue;
-  static Color RGB(char red, char green, char blue) {
+  uint8_t red, green, blue;
+
+  Color(const Color &oldc) {
+    red = oldc.red;
+    green = oldc.green;
+    blue = oldc.blue;
+  }
+
+  ~Color() {
+    free(_description);
+  }
+
+  uint8_t blend8(uint8_t a, uint8_t b, float amount) {
+    return (1-amount) * a + amount * b;
+  }
+
+  Color blendWith(Color c2, float amount) {
+    amount = fmax(0.0, fmin(1.0, amount));
+    uint8_t r = blend8(red, c2.red, amount);
+    uint8_t g = blend8(green, c2.green, amount);
+    uint8_t b = blend8(blue, c2.blue, amount);
+    return Color::RGB(r, g, b);
+  }
+
+  char *description() {
+    if (_description) {
+      free(_description);
+    }
+    _description = (char *)malloc(20 * sizeof(char));
+    snprintf(_description, 20, "(%i, %i, %i)\n", red, green, blue);
+    return _description;
+  }
+
+  //
+
+  static Color White;
+  static Color Black;
+  static Color DeepPink;
+
+  static Color RGB(uint8_t red, uint8_t green, uint8_t blue) {
     return Color(red, green, blue);
   }
-  static Color HSB(char hue, char sat, char bright) {
+  static Color HSB(uint8_t hue, uint8_t sat, uint8_t bright) {
     float sat_f = (float)sat / 0xFF;
     float bright_f = (float)sat / 0xFF;
     int c = bright_f * sat_f;
@@ -104,7 +161,10 @@ public:
     }
     return Color((rp + m) * 0xFF, (gp + m) * 0xFF, (bp + m) * 0xFF);
   }
-
 };
+
+Color Color::White = Color::RGB(0xFF, 0xFF, 0xFF);
+Color Color::Black = Color::RGB(0, 0, 0);
+Color Color::DeepPink = Color::RGB(0xFF, 0x14, 0x93);
 
 #endif

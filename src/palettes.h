@@ -1,100 +1,7 @@
-/*
+#include <vector>
 
-// FIXME: needs to be ported to non-FastLED
-
-class Palette {
-  float positions[];
-  Color colors[];
-  
-  Palette(char args[]) {
-    int count = 
-    positions = new float[args.length/4];
-    colors = new Color[args.length/4];
-    for (int i = 0; i < args.length; i += 4) { 
-      positions[i / 4] = args[i];
-      colors[i / 4] = color(args[i+1], args[i+2], args[i+3]);
-    }
-  }
-
-  ~Palette() {
-    delete[] positions;
-    delete[] colors;
-  }
-  
-  void printColor(color c) {
-    println("Color: (" + red(c) + ", " + green(c) + ", " + blue(c) + ")");
-  }
-  
-  public color getColor(int position) {
-    pushStyle();
-    colorMode(RGB, 0xFF);
-    position = Math.floorMod(position, 0x100);
-    
-    int colorIndex = 1;
-    for (int i = 1; i < positions.length; ++i) {
-      if (positions[i] >= position) {
-        colorIndex = i;
-        break;
-      }
-    }
-    color c1 = colors[colorIndex - 1];
-    color c2 = colors[colorIndex];
-    float amt = (position - positions[colorIndex - 1]) / (float)(positions[colorIndex] - positions[colorIndex - 1]);
-    color c = lerpColor(c1, c2, amt);
-    popStyle();
-    return c;
-  }
-  
-  public color getRandom() {
-    return getColor(rand.nextInt(0xFF));
-  }
-  
-  public void drawPalette() {
-    // Test code to draw a palette
-    Palette p = palettes.randomPalette();
-    for (int x = 0; x < width; ++x) {
-      stroke(p.getColor((int)(x / (float)width * 255)));
-      line(x, 0, x, height);
-    }
-  }
-}
-
-public class PaletteManager {
-  Palette palettes[];
-  
-  public PaletteManager() {
-    // createPalettes();
-  }
-  
-  Palette randomPalette() {
-    int i = rand.nextInt(palettes.length);
-    println("Picked Palette " + i + " which has " + palettes[i].colors.length + " colors");
-    return palettes[i];
-  }
-  
-  Palette randomNonBlackPalette() {
-    int i;
-    Palette p;
-    boolean hasBlack;
-    do {
-      hasBlack = false;
-      i = rand.nextInt(palettes.length);
-      p = palettes[i]; 
-
-      for (color c : p.colors) {
-        if (red(c) < 20 && blue(c) < 20 && green(c) < 20) {
-          hasBlack = true;
-          continue;
-        }
-      }
-    } while (hasBlack == true);
-    println("Picked Light Palette " + i);
-    return palettes[i];
-  }
-}
-
-
-#define DEFINE_GRADIENT_PALETTE(X) char X[] = 
+#define DEFINE_GRADIENT_PALETTE(X) \
+const uint8_t X[] = 
 // Color palettes courtesy of cpt-city and its contributors:
 //   http://soliton.vm.bytemark.co.uk/pub/cpt-city/
 //
@@ -611,52 +518,140 @@ DEFINE_GRADIENT_PALETTE( Blue_Cyan_Yellow_gp ) {
 //
 // This list of color palettes acts as a "playlist"; you can
 // add or delete, or re-arrange as you wish.
+const uint8_t* gGradientPalettes[] = {
+  Sunset_Real_gp,
+  es_rivendell_15_gp,
+  es_ocean_breeze_036_gp,
+  rgi_15_gp,
+  retro2_16_gp,
+  Analogous_1_gp,
+  es_pinksplash_08_gp,
+  Coral_reef_gp,
+  es_ocean_breeze_068_gp,
+  es_pinksplash_07_gp,
+  es_vintage_01_gp,
+  departure_gp,
+  es_landscape_64_gp,
+  es_landscape_33_gp,
+  rainbowsherbet_gp,
+  gr65_hult_gp,
+  gr64_hult_gp,
+  GMT_drywet_gp,
+  ib_jul01_gp,
+  es_vintage_57_gp,
+  ib15_gp,
+  Fuschia_7_gp,
+  es_emerald_dragon_08_gp,
+  lava_gp,
+  fire_gp,
+  Colorfull_gp,
+  Magenta_Evening_gp,
+  Pink_Purple_gp,
+  es_autumn_19_gp,
+  BlacK_Blue_Magenta_White_gp,
+  BlacK_Magenta_Red_gp,
+  BlacK_Red_Magenta_Yellow_gp,
+  Blue_Cyan_Yellow_gp
+};
 
 
-
-// FIXME: 
-
-
-// const TProgmemRGBGradientPalettePtr gGradientPalettes[] = {
-//   Sunset_Real_gp,
-//   es_rivendell_15_gp,
-//   es_ocean_breeze_036_gp,
-//   rgi_15_gp,
-//   retro2_16_gp,
-//   Analogous_1_gp,
-//   es_pinksplash_08_gp,
-//   Coral_reef_gp,
-//   es_ocean_breeze_068_gp,
-//   es_pinksplash_07_gp,
-//   es_vintage_01_gp,
-//   departure_gp,
-//   es_landscape_64_gp,
-//   es_landscape_33_gp,
-//   rainbowsherbet_gp,
-//   gr65_hult_gp,
-//   gr64_hult_gp,
-//   GMT_drywet_gp,
-//   ib_jul01_gp,
-//   es_vintage_57_gp,
-//   ib15_gp,
-//   Fuschia_7_gp,
-//   es_emerald_dragon_08_gp,
-//   lava_gp,
-//   fire_gp,
-//   Colorfull_gp,
-//   Magenta_Evening_gp,
-//   Pink_Purple_gp,
-//   es_autumn_19_gp,
-//   BlacK_Blue_Magenta_White_gp,
-//   BlacK_Magenta_Red_gp,
-//   BlacK_Red_Magenta_Yellow_gp,
-//   Blue_Cyan_Yellow_gp
-// };
+// Count of how many cpt-city gradients are defined:
+const uint8_t gGradientPaletteCount =
+  sizeof( gGradientPalettes) / sizeof( uint8_t * );
 
 
-// // Count of how many cpt-city gradients are defined:
-// const uint8_t gGradientPaletteCount =
-//   sizeof( gGradientPalettes) / sizeof( TProgmemRGBGradientPalettePtr );
+class Palette {
+public:
+  std::vector<uint8_t> positions;
+  std::vector<Color> colors;
+  
+  Palette(const uint8_t *paletteData) {
+    // positions = new std::vector<uint8_t>();
+    // colors = new std::vector<Color>();
+    uint8_t position;
+    do {
+      position = *paletteData++;
+      uint8_t red = *paletteData++;
+      uint8_t green = *paletteData++;
+      uint8_t blue = *paletteData++;
+      positions.push_back(position);
+      colors.push_back(Color::RGB(red, green, blue));
+    } while (position != 255);
+  }
 
+  ~Palette() {
+    // delete positions;
+    // delete colors;
+  }
+    
+  Color getColor(int position) {
+    position = mod_wrap(position, 0x100);
+    
+    int colorIndex = 1;
+    for (int i = 1; i < positions.size(); ++i) {
+      if (positions[i] >= position) {
+        colorIndex = i;
+        break;
+      }
+    }
+    Color c1 = colors[colorIndex - 1];
+    Color c2 = colors[colorIndex];
+    float amt = (position - positions[colorIndex - 1]) / (float)(positions[colorIndex] - positions[colorIndex - 1]);
+    Color c = c1.blendWith(c2, amt);
+    return c;
+  }
+  
+  Color getRandom() {
+    return getColor(random() % 0x100);
+  }
+};
+  
+//   public void drawPalette() {
+//     // Test code to draw a palette
+//     Palette p = palettes.randomPalette();
+//     for (int x = 0; x < width; ++x) {
+//       stroke(p.getColor((int)(x / (float)width * 255)));
+//       line(x, 0, x, height);
+//     }
+//   }
+// }
 
-*/
+class PaletteManager {
+public:
+  std::vector<Palette> palettes;
+  
+  PaletteManager() {
+    for (int p = 0; p < gGradientPaletteCount; ++p) {
+      Palette palette = Palette(gGradientPalettes[p]);
+      palettes.push_back(palette);
+    }
+  }
+  
+  Palette randomPalette() {
+    int i = random() % palettes.size();
+    printf("Picked Palette %u which has %i colors", i, (unsigned)palettes[i].colors.size());
+    return palettes[i];
+  }
+  
+  Palette randomNonBlackPalette() {
+    int i;
+    bool hasBlack;
+    do {
+      hasBlack = false;
+      i = random() % palettes.size();
+      Palette p = palettes[i];
+
+      for (int i = 0; i < p.colors.size(); ++i) {
+        Color c = p.colors[i];
+        if (c.red < 20 && c.blue < 20 && c.green < 20) {
+          hasBlack = true;
+          continue;
+        }
+      }
+    } while (hasBlack == true);
+    printf("Picked Light Palette %i\n", i);
+    return palettes[i];
+  }
+};
+
+PaletteManager paletteManager;

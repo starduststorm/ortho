@@ -160,11 +160,7 @@ public:
   void update(pixel pixels[]) {
     long mils = millis();
 
-    for (int i = 0; i < NUM_LEDS; ++i) {
-      pixels[i].r *= 0.98;
-      pixels[i].g *= 0.98;
-      pixels[i].b *= 0.98;
-    }
+    fadeDownBy(0.02);
 
     const float density = 1;//max(0.01, 1 + sin(millis / 1000. / 5));
     
@@ -190,8 +186,8 @@ public:
         activeNeedles++;
         int index = (needles[i].light + needleLength * i);
         
-        int hue = leader % 255;
-        Color color = Color::HSB(leader % 255, 0xFF, 0xFF);
+        int hue = leader % 0x100;
+        Color color = Color::HSB(leader % 0x100, 0xFF, 0xFF);
         // rainbow
         pixels[index].r = color.red;
         pixels[index].g = color.green;
@@ -200,10 +196,10 @@ public:
         //set(index % 64, index / 64, Palette_ROYGBIV.sample(millis()/4.0/1000));
         
         // palette
-        //set(index % 64, index / 64, palette.getColor((needle.counter) % 0xFF));
+        //set(index % 64, index / 64, palette.getColor((needle.counter) 0x100));
         
         // cool accidental twinkly effect due to `i` scaling down as `needles` is cleared out
-        //set(index % 64, index / 64, palette.getColor((leader+10*i) % 0xFF));
+        //set(index % 64, index / 64, palette.getColor((leader+10*i) % 0x100));
         
         
         // oscillate
@@ -225,6 +221,166 @@ public:
   }
 };
 
+/* -------------------- */
+
+class Bits : public Pattern {
+    enum BitColor {
+      monotone, fromPalette, mix, white, pink
+    };
+    typedef struct _BitsPreset {
+      unsigned int maxBits, bitLifespan, updateInterval, fadedown;
+      BitColor color;
+    } BitsPreset;
+
+    BitsPreset presets[8] = {
+      { .maxBits = 15, .bitLifespan = 3000, .updateInterval = 35, .fadedown = 5, .color = white}, // dots enhancer
+      { .maxBits = 15, .bitLifespan = 3000, .updateInterval = 45, .fadedown = 5, .color = fromPalette}, // dots enhancer
+      // little too frenetic, use as trigger patterns?
+      //      { .maxBits = 10, .bitLifespan = 3000, .updateInterval = 0, .fadedown = 20, .color = monotone }, // party streamers
+      //      { .maxBits = 10, .bitLifespan = 3000, .updateInterval = 0, .fadedown = 20, .color = mix }, // multi-color party streamers
+      { .maxBits = 30, .bitLifespan = 3000, .updateInterval = 1, .fadedown = 15, .color = pink}, // pink triangle
+      { .maxBits = 50, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 5, .color = monotone }, // chill streamers
+      { .maxBits = 50, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 5, .color = fromPalette}, // palette chill streamers
+      { .maxBits = 100, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 30, .color = monotone }, // moving dots
+      { .maxBits = 140, .bitLifespan = 3000, .updateInterval = 350, .fadedown = 5, .color = monotone }, // OG bits pattern
+      { .maxBits = 12, .bitLifespan = 3000, .updateInterval = 4, .fadedown = 50, .color = monotone }, // chase
+    };
+
+    class Bit {
+        int8_t direction;
+        unsigned long birthdate;
+      public:
+        unsigned int pos;
+        bool alive;
+        unsigned long lastTick;
+        Color color;
+        Bit(Color color) : color(Color::Black) {
+          reset(color);
+        }
+        void reset(Color color) {
+          birthdate = millis();
+          alive = true;
+          pos = random() % NUM_LEDS;
+          direction = random() % 2 == 0 ? 1 : -1;
+          this->color = color;
+        }
+        unsigned int age() {
+          return millis() - birthdate;
+        }
+        float ageBrightness() {
+          // FIXME: assumes 3000ms lifespan
+          float theAge = age();
+          if (theAge < 500) {
+            return theAge / 500.;
+          } else if (theAge > 2500) {
+            return (3000 - theAge) / 500.;
+          }
+          return 1.0;
+        }
+        void tick() {
+          pos = mod_wrap(pos + direction, NUM_LEDS);
+          lastTick = millis();
+        }
+    };
+
+    Bit *bits;
+    unsigned int numBits;
+    unsigned int lastBitCreation;
+    BitsPreset preset;
+    char constPreset;
+
+    Color color;
+    Palette *palette;
+  public:
+    Bits(int constPreset = -1) : color(Color::Black) {
+      this->constPreset = constPreset;
+    }
+  private:
+
+    Color getBitColor() {
+      switch (preset.color) {
+        case monotone:
+          return color; break;
+        case fromPalette:
+          return palette->getRandom(); break;
+        case mix:
+          return Color::HSB(random8(), random() % 55 + 200, 0xFF); break;
+        case white:
+          return Color::White;
+        case pink:
+        default:
+          return Color::DeepPink;
+      }
+    }
+
+    void setup() {
+      uint8_t pick;
+      if (constPreset != -1 && constPreset < ARRAY_SIZE(presets)) {
+        pick = constPreset;
+        logf("Using const Bits preset %u", pick);
+      } else {
+        pick = random8(ARRAY_SIZE(presets));
+        logf("Picked Bits preset %u", pick);
+      }
+      preset = presets[pick];
+
+      palette = &(paletteManager.palettes[random() % ARRAY_SIZE(gGradientPalettes)]);
+      // for monotone
+      color = Color::HSB(random8(), random8(8) == 0 ? 0 : random8(200, 255), 255);
+
+      bits = (Bit *)calloc(preset.maxBits, sizeof(Bit));
+      numBits = 0;
+    }
+
+    void update(pixel pixels[]) {
+      unsigned long mils = millis();
+      bool hasAliveBit = false;
+      for (unsigned int i = 0; i < numBits; ++i) {
+        Bit *bit = &bits[i];
+        if (bit->age() > preset.bitLifespan) {
+          bit->alive = false;
+        }
+        if (bit->alive) {
+          Color c = Color::Black.blendWith(bit->color, bit->ageBrightness());
+          pixels[bit->pos].r = c.red;
+          pixels[bit->pos].g = c.green;
+          pixels[bit->pos].b = c.blue;
+          if (mils - bit->lastTick > preset.updateInterval) {
+            bit->tick();
+          }
+          hasAliveBit = true;
+        } else if (!isStopping()) {
+          bit->reset(getBitColor());
+          hasAliveBit = true;
+        }
+      }
+
+      if (isRunning() && numBits < preset.maxBits && mils - lastBitCreation > preset.bitLifespan / preset.maxBits) {
+        bits[numBits++] = Bit(getBitColor());
+        lastBitCreation = mils;
+      }
+      if (!isStopping()) {
+        fadeDownBy(1./preset.fadedown);
+      } else if (!hasAliveBit) {
+        stopCompleted();
+      }
+    }
+
+    void stopCompleted() {
+      Pattern::stopCompleted();
+      if (bits) {
+        free(bits);
+        bits = NULL;
+        numBits = 0;
+      }
+    }
+
+    const char *description() {
+      return "Bits pattern";
+    }
+};
+
+/* ------------------- */
 
 class RaverPlaid : public Pattern {
   void start() {
@@ -249,7 +405,6 @@ class RaverPlaid : public Pattern {
     // Demo code from Open Pixel Control
     // http://github.com/zestyping/openpixelcontrol
     int n_pixels = NUM_LEDS;
-    int fps = 60;
 
     // how many sine wave cycles are squeezed into our n_pixels
     // 24 happens to create nice diagonal stripes on the wall layout
@@ -277,6 +432,9 @@ class RaverPlaid : public Pattern {
         pixels[ii].r = r;
         pixels[ii].g = g;
         pixels[ii].b = b;
+    }
+    if (isStopping()) {
+      stopCompleted();
     }
     // usleep(1. / fps * 1000000);
   }
