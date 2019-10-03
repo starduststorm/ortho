@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-// #include <wiringPi.h>
+#if RASPBERRY_PI
+#include <wiringPi.h>
+#endif
 #include "opc/opc.h"
 
 
@@ -51,6 +53,11 @@ int first_pattern = -1;
 long lastFrame = 0;
 const int fps_cap = 60;
 
+#if RASPBERRY_PI
+const int modeButtonPin = 18;
+#endif
+bool displayOn = true;
+
 void setup() {
   sink = opc_new_sink((char *)"127.0.0.1:7890");
   printf("sizeof(short) = %lu\n", sizeof(short));
@@ -60,22 +67,54 @@ void setup() {
   printf("sizeof(float) = %lu\n", sizeof(float));
   printf("sizeof(double) = %lu\n", sizeof(double));
 
-    FILE *frand = fopen("/dev/urandom","r");
-    if (frand != NULL) {
-      unsigned int r;
-      fread(&r,sizeof(unsigned int),1,frand);
-      srandom(r);
-      fclose(frand);
-    }
+  FILE *frand = fopen("/dev/urandom","r");
+  if (frand != NULL) {
+    unsigned int r;
+    fread(&r,sizeof(unsigned int),1,frand);
+    srandom(r);
+    fclose(frand);
+  }
 
-  // pinMode( 7, INPUT );
-  // printf("read on pin = %i", digitalRead(7));
+#if RASPBERRY_PI
+  wiringPiSetupGpio();
+  pinMode(modeButtonPin, INPUT);
+  pullUpDnControl(modeButtonPin, PUD_DOWN); // pull pin down when button is not pressed
+  printf("Initialized mode pin\n");
+#endif
 
   fc.tick();
 }
 
-void loop() {
-  for (unsigned i = 0; i < kIdlePatternsCount; ++i) {
+void nextPattern() {
+  if (activePattern) {
+    activePattern->lazyStop();
+    lastPattern = activePattern;
+  }
+  activePattern = NULL;
+}
+
+void checkButtons() {
+#if RASPBERRY_PI
+  static bool modeButtonPressed = false;
+  static long modeButtonPressedMillis = -1;
+
+  bool oldModeButtonPressed = modeButtonPressed;
+  modeButtonPressed = (digitalRead(modeButtonPin) == HIGH);
+  if (modeButtonPressed && !oldModeButtonPressed) {
+    printf("Mode button pressed\n");
+    modeButtonPressedMillis = millis();
+    nextPattern();
+    displayOn = true;
+  }
+  if (displayOn && modeButtonPressed && millis() - modeButtonPressedMillis > 2000) {
+    printf("Turning off...\n");
+    displayOn = false;
+  }
+#endif
+}
+
+void runPatterns() {
+    for (unsigned i = 0; i < kIdlePatternsCount; ++i) {
     Pattern *pattern = idlePatterns[i];
     if (pattern->isRunning() || pattern->isStopping()) {
       pattern->loop(pixels);
@@ -90,13 +129,14 @@ void loop() {
   }
 
   // time out idle patterns
-  if (!triggerIsActive && activePattern != NULL && activePattern->isRunning() && activePattern->runTime() > kIdlePatternTimeout) {
-    if (activePattern != testIdlePattern && activePattern->wantsToIdleStop()) {
-      activePattern->lazyStop();
-      lastPattern = activePattern;
-      activePattern = NULL;
-    }
-  }
+  // Disabled for tranciness
+  // if (!triggerIsActive && activePattern != NULL && activePattern->isRunning() && activePattern->runTime() > kIdlePatternTimeout) {
+  //   if (activePattern != testIdlePattern && activePattern->wantsToIdleStop()) {
+  //     activePattern->lazyStop();
+  //     lastPattern = activePattern;
+  //     activePattern = NULL;
+  //   }
+  // }
 
   // start a new idle pattern
   if (activePattern == NULL) {
@@ -113,8 +153,20 @@ void loop() {
       activePattern = nextPattern;
     }
   }
-  opc_put_pixels(sink, 0, NUM_LEDS, pixels);
+}
 
+void loop() {
+  checkButtons();
+
+  if (!displayOn) {
+    fadeDownBy(0.1);
+  } else {
+    runPatterns();
+  }
+  if (0 == opc_put_pixels(sink, 0, NUM_LEDS, pixels)) {
+    // Failed to connect to fadecandy, don't spam it
+    sleep(5);
+  }
 
   long frameTime = millis() - lastFrame;
   if (frameTime < 1000./fps_cap) {

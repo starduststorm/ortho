@@ -241,7 +241,7 @@ class Bits : public Pattern {
       { .maxBits = 30, .bitLifespan = 3000, .updateInterval = 1, .fadedown = 15, .color = pink}, // pink triangle
       { .maxBits = 50, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 5, .color = monotone }, // chill streamers
       { .maxBits = 50, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 5, .color = fromPalette}, // palette chill streamers
-      { .maxBits = 100, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 30, .color = monotone }, // moving dots
+      { .maxBits = 80, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 30, .color = monotone }, // moving dots
       { .maxBits = 140, .bitLifespan = 3000, .updateInterval = 350, .fadedown = 5, .color = monotone }, // OG bits pattern
       { .maxBits = 12, .bitLifespan = 3000, .updateInterval = 4, .fadedown = 50, .color = monotone }, // chase
     };
@@ -304,7 +304,7 @@ class Bits : public Pattern {
         case fromPalette:
           return palette->getRandom(); break;
         case mix:
-          return Color::HSB(random8(), random() % 55 + 200, 0xFF); break;
+          return Color::HSB(random8(), random8(200, 255), 0xFF); break;
         case white:
           return Color::White;
         case pink:

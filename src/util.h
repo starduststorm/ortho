@@ -142,9 +142,9 @@ public:
   static Color HSB(uint8_t hue, uint8_t sat, uint8_t bright) {
     float sat_f = (float)sat / 0xFF;
     float bright_f = (float)sat / 0xFF;
-    int c = bright_f * sat_f;
+    float c = bright_f * sat_f;
     float x = c * (1 - fabs(fmod_wrap(hue / (0xFF/6.), 2) - 1));
-    int m = bright_f - c;
+    float m = bright_f - c;
     float rp, gp, bp;
     if (hue < 1 * 0xFF/6.) {
       rp = c; gp = x; bp = 0;
