@@ -58,7 +58,7 @@ class FrameCounter {
     long lastPrint = 0;
     long frames = 0;
   public:
-    long printInterval = 2000;
+    long printInterval = 5000;
     void tick() {
       unsigned long mil = millis();
       long elapsed = mil - lastPrint;
@@ -85,6 +85,22 @@ uint8_t random8() {
   return random() % 0x100;
 }
 
+float remap(float x, float oldmin, float oldmax, float newmin, float newmax) {
+  float zero_to_one = (x-oldmin) / (oldmax-oldmin);
+  return zero_to_one*(newmax-newmin) + newmin;
+}
+
+float util_cos(float x, float offset, float period, float minn, float maxx) {
+    float value = cos((x/period - offset) * M_PI * 2) / 2 + 0.5;
+    return value*(maxx-minn) + minn;
+}
+
+float clamp(float x, float minn, float maxx) {
+  return fmax(minn, fmin(maxx, x));
+}
+
+///
+
 class Color {
 private:
   void _init(uint8_t red, uint8_t green, uint8_t blue) {
@@ -98,6 +114,10 @@ private:
   char *_description = NULL; // cache
 public:
   uint8_t red, green, blue;
+
+  Color() {
+    red = 0; green = 0; blue = 0;
+  }
 
   Color(const Color &oldc) {
     red = oldc.red;
@@ -126,7 +146,7 @@ public:
       free(_description);
     }
     _description = (char *)malloc(20 * sizeof(char));
-    snprintf(_description, 20, "(%i, %i, %i)\n", red, green, blue);
+    snprintf(_description, 20, "(%i, %i, %i)", red, green, blue);
     return _description;
   }
 
@@ -141,7 +161,7 @@ public:
   }
   static Color HSB(uint8_t hue, uint8_t sat, uint8_t bright) {
     float sat_f = (float)sat / 0xFF;
-    float bright_f = (float)sat / 0xFF;
+    float bright_f = (float)bright / 0xFF;
     float c = bright_f * sat_f;
     float x = c * (1 - fabs(fmod_wrap(hue / (0xFF/6.), 2) - 1));
     float m = bright_f - c;

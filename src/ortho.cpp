@@ -60,12 +60,12 @@ bool displayOn = true;
 
 void setup() {
   sink = opc_new_sink((char *)"127.0.0.1:7890");
-  printf("sizeof(short) = %lu\n", sizeof(short));
-  printf("sizeof(int) = %lu\n", sizeof(int));
-  printf("sizeof(long) = %lu\n", sizeof(long));
-  printf("sizeof(long long) = %lu\n", sizeof(long long));
-  printf("sizeof(float) = %lu\n", sizeof(float));
-  printf("sizeof(double) = %lu\n", sizeof(double));
+  // printf("sizeof(short) = %lu\n", sizeof(short));
+  // printf("sizeof(int) = %lu\n", sizeof(int));
+  // printf("sizeof(long) = %lu\n", sizeof(long));
+  // printf("sizeof(long long) = %lu\n", sizeof(long long));
+  // printf("sizeof(float) = %lu\n", sizeof(float));
+  // printf("sizeof(double) = %lu\n", sizeof(double));
 
   FILE *frand = fopen("/dev/urandom","r");
   if (frand != NULL) {

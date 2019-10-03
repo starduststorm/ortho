@@ -43,7 +43,7 @@ class Pattern {
       return true;
     }
 
-    void start() {
+    virtual void start() {
       logf("Starting %s", description());
       startTime = millis();
       stopTime = -1;
@@ -149,6 +149,8 @@ class Needles : public Pattern {
   Needle *needles;
   int numNeedles;
   long lastStartMillis = 0;
+  int submode;
+  Palette palette;
 public:
   Needles() {
     numNeedles = NUM_LEDS / needleLength;
@@ -157,6 +159,12 @@ public:
   ~Needles() {
     delete[] needles;
   }
+  void start() {
+    Pattern::start();
+    submode = random8(2);
+    palette = paletteManager.randomPalette();
+  }
+
   void update(pixel pixels[]) {
     long mils = millis();
 
@@ -186,31 +194,24 @@ public:
         activeNeedles++;
         int index = (needles[i].light + needleLength * i);
         
-        int hue = leader % 0x100;
-        Color color = Color::HSB(leader % 0x100, 0xFF, 0xFF);
-        // rainbow
+        Color color;
+        if (submode == 0) {
+          // rainbow
+          int hue = leader % 0x100;
+          color = Color::HSB(leader % 0x100, 0xFF, 0xFF);
+        } else if (submode == 1) {
+          // cool accidental twinkly effect due to `i` scaling down as `needles` is cleared out
+          // FIXME: this is less interesting now after I've ported it to C++ and used a constant-size array
+          color = palette.getColor((leader+10*activeNeedles) % 0x100);
+        }
+        
         pixels[index].r = color.red;
         pixels[index].g = color.green;
         pixels[index].b = color.blue;
 
-        //set(index % 64, index / 64, Palette_ROYGBIV.sample(millis()/4.0/1000));
-        
-        // palette
-        //set(index % 64, index / 64, palette.getColor((needle.counter) 0x100));
-        
-        // cool accidental twinkly effect due to `i` scaling down as `needles` is cleared out
-        //set(index % 64, index / 64, palette.getColor((leader+10*i) % 0x100));
-        
-        
-        // oscillate
-        //float hue = centerColor + 30*sin(millis()*PI/1000);
-        //println("center: " + centerColor + ", hue: " + hue);
-        //set(index % 64, index / 64, color(hue, 100, 100));
         needles[i].tick();
         }
       }
-    // centerColor += 0.05;
-    // centerColor = centerColor % 100;
     leader++;
     if (isStopping() && activeNeedles == 0) {
       stopCompleted();
@@ -233,17 +234,17 @@ class Bits : public Pattern {
     } BitsPreset;
 
     BitsPreset presets[8] = {
-      { .maxBits = 15, .bitLifespan = 3000, .updateInterval = 35, .fadedown = 5, .color = white}, // dots enhancer
-      { .maxBits = 15, .bitLifespan = 3000, .updateInterval = 45, .fadedown = 5, .color = fromPalette}, // dots enhancer
+      { .maxBits = 35, .bitLifespan = 3000, .updateInterval = 35, .fadedown = 2, .color = white}, // dots enhancer
+      { .maxBits = 35, .bitLifespan = 3000, .updateInterval = 45, .fadedown = 5, .color = fromPalette}, // dots enhancer
       // little too frenetic, use as trigger patterns?
       //      { .maxBits = 10, .bitLifespan = 3000, .updateInterval = 0, .fadedown = 20, .color = monotone }, // party streamers
       //      { .maxBits = 10, .bitLifespan = 3000, .updateInterval = 0, .fadedown = 20, .color = mix }, // multi-color party streamers
       { .maxBits = 30, .bitLifespan = 3000, .updateInterval = 1, .fadedown = 15, .color = pink}, // pink triangle
       { .maxBits = 50, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 5, .color = monotone }, // chill streamers
       { .maxBits = 50, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 5, .color = fromPalette}, // palette chill streamers
-      { .maxBits = 80, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 30, .color = monotone }, // moving dots
+      { .maxBits = 80, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 20, .color = monotone }, // moving dots
       { .maxBits = 140, .bitLifespan = 3000, .updateInterval = 350, .fadedown = 5, .color = monotone }, // OG bits pattern
-      { .maxBits = 12, .bitLifespan = 3000, .updateInterval = 4, .fadedown = 50, .color = monotone }, // chase
+      { .maxBits = 12, .bitLifespan = 3000, .updateInterval = 4, .fadedown = 40, .color = monotone }, // chase
     };
 
     class Bit {
@@ -383,34 +384,33 @@ class Bits : public Pattern {
 /* ------------------- */
 
 class RaverPlaid : public Pattern {
+  // how many sine wave cycles are squeezed into our n_pixels
+  // 24 happens to create nice diagonal stripes on the wall layout
+  const int default_freq = 24;
+  float freq_r = default_freq;
+  float freq_g = default_freq;
+  float freq_b = default_freq;
+
   void start() {
     Pattern::start();
-  }
 
-  float remap(float x, float oldmin, float oldmax, float newmin, float newmax) {
-    float zero_to_one = (x-oldmin) / (oldmax-oldmin);
-    return zero_to_one*(newmax-newmin) + newmin;
-  }
-
-  float util_cos(float x, float offset, float period, float minn, float maxx) {
-      float value = cos((x/period - offset) * M_PI * 2) / 2 + 0.5;
-      return value*(maxx-minn) + minn;
-  }
-
-  float clamp(float x, float minn, float maxx) {
-    return fmax(minn, fmin(maxx, x));
+    if (random8(2) == 0) {
+      printf("  Default frequencies\n");
+      freq_r = default_freq;
+      freq_g = default_freq;
+      freq_b = default_freq;
+    } else {
+      freq_r = random8(18, 30);
+      freq_g = random8(18, 30);
+      freq_b = random8(18, 30);;
+      printf("  frequencies %f, %f, %f\n", freq_r, freq_g, freq_b);
+    }
   }
 
   void update(pixel pixels[]) {
     // Demo code from Open Pixel Control
     // http://github.com/zestyping/openpixelcontrol
     int n_pixels = NUM_LEDS;
-
-    // how many sine wave cycles are squeezed into our n_pixels
-    // 24 happens to create nice diagonal stripes on the wall layout
-    float freq_r = 24;
-    float freq_g = 24;
-    float freq_b = 24;
 
     // how many seconds the color sine waves take to shift through a complete cycle
     float speed_r = 7;

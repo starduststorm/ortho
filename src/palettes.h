@@ -561,13 +561,8 @@ const uint8_t gGradientPaletteCount =
 
 
 class Palette {
-public:
-  std::vector<uint8_t> positions;
-  std::vector<Color> colors;
-  
-  Palette(const uint8_t *paletteData) {
-    // positions = new std::vector<uint8_t>();
-    // colors = new std::vector<Color>();
+private:
+  void initWithData(const uint8_t *paletteData) {
     uint8_t position;
     do {
       position = *paletteData++;
@@ -579,9 +574,23 @@ public:
     } while (position != 255);
   }
 
+public:
+  std::vector<uint8_t> positions;
+  std::vector<Color> colors;
+
+  Palette() {
+    const uint8_t paletteData[] = {
+      0, 0, 0, 0,
+      255, 0, 0, 0,
+    };
+    initWithData(paletteData);
+  }
+
+  Palette(const uint8_t *paletteData) {
+    initWithData(paletteData);
+  }
+
   ~Palette() {
-    // delete positions;
-    // delete colors;
   }
     
   Color getColor(int position) {
@@ -629,7 +638,7 @@ public:
   
   Palette randomPalette() {
     int i = random() % palettes.size();
-    printf("Picked Palette %u which has %i colors", i, (unsigned)palettes[i].colors.size());
+    printf("Picked Palette %u which has %i colors\n", i, (unsigned)palettes[i].colors.size());
     return palettes[i];
   }
   
