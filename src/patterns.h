@@ -163,6 +163,7 @@ public:
     Pattern::start();
     submode = random8(2);
     palette = paletteManager.randomPalette();
+    lastStartMillis = millis();
   }
 
   void update(pixel pixels[]) {
@@ -417,7 +418,7 @@ class RaverPlaid : public Pattern {
     float speed_g = -13;
     float speed_b = 19;
     float t = runTime() / 1000. * 5;
-    // pixels = [];
+    float runtimeAlpha = (runTime() < 1000 ? runTime() / 1000. : 1.0);
     for (int ii = 0; ii < n_pixels; ++ii) {
         float pct = (ii / (float)n_pixels);
         // diagonal black stripes
@@ -429,9 +430,10 @@ class RaverPlaid : public Pattern {
         char r = blackstripes * remap(cos((t/speed_r + pct*freq_r)*M_PI*2), -1, 1, 0, 255);
         char g = blackstripes * remap(cos((t/speed_g + pct*freq_g)*M_PI*2), -1, 1, 0, 255);
         char b = blackstripes * remap(cos((t/speed_b + pct*freq_b)*M_PI*2), -1, 1, 0, 255);
-        pixels[ii].r = r;
-        pixels[ii].g = g;
-        pixels[ii].b = b;
+
+        pixels[ii].r = r * runtimeAlpha;
+        pixels[ii].g = g * runtimeAlpha;
+        pixels[ii].b = b * runtimeAlpha;
     }
     if (isStopping()) {
       stopCompleted();

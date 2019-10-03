@@ -108,6 +108,10 @@ void checkButtons() {
   }
   if (displayOn && modeButtonPressed && millis() - modeButtonPressedMillis > 2000) {
     printf("Turning off...\n");
+    if (activePattern) {
+      activePattern->stop();
+      activePattern = NULL;
+    }
     displayOn = false;
   }
 #endif
