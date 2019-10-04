@@ -406,7 +406,9 @@ class Undulation : public Pattern {
 
   void start() {
     Pattern::start();
+    highlights.clear();
     submode = random8(3);
+    printf("  submode %i\n", submode);
     baseHue = random8();
   }
 
@@ -448,7 +450,7 @@ class Undulation : public Pattern {
       
       lastHighlight = millis();
     }
-    for (std::vector<Highlight>::iterator it = highlights.begin(); it != highlights.end(); ++it) {
+    for (std::vector<Highlight>::iterator it = highlights.begin(); it < highlights.end(); ++it) {
       for (int i = 0; i < 8; ++i) {
         int index = it->stick * 8 + i;
         pixels[index].r = it->amount * it->color.red + (1-it->amount) * pixels[index].r;
