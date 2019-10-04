@@ -382,6 +382,73 @@ class Bits : public Pattern {
     }
 };
 
+class Undulation : public Pattern {
+  class Highlight {
+  public:
+    int stick;
+    float amount;
+    Color color;
+    Highlight() {
+      stick = random8(NUM_LEDS / 8);
+      color = Color::HSB(random8(), 0xFF, 0xFF);
+      amount = 1.0;
+    }
+    void tick() {
+      amount -= 0.01;
+    }
+  };
+
+  std::vector<Highlight> highlights;
+  long lastHighlight = 0;
+
+  void start() {
+    Pattern::start();
+  }
+
+  void update(pixel pixels[]) {
+    float t = runTime() / 1000.;
+    for (int stick = 0; stick < NUM_LEDS / 8; ++stick) {
+      float period = 4;// + util_cos(t, 0.01 * stick, 10, 0, 1);
+      int sat = 0;//fmax(0, util_cos(t, 0.31 * stick, 30, -2*0xFF, 0xFF));
+      int hue = 0;//util_cos(t, -0.21 * stick, 40, 0, 0xFF);
+      for (int i = 0; i < 8; ++i) {
+        int bright = fmax(0, util_cos(t, 0.01 * stick + 0.1 * i, period, -30, 0x60));
+
+        int index = 8 * stick + i;
+        Color c = Color::HSB(hue, sat, bright);
+        pixels[index].r = c.red;
+        pixels[index].g = c.green;
+        pixels[index].b = c.blue;
+      }
+    }
+
+    if (millis() - lastHighlight > 100) {
+      Highlight h;
+      highlights.push_back(h);
+      lastHighlight = millis();
+    }
+    for (std::vector<Highlight>::iterator it = highlights.begin(); it != highlights.end(); ++it) {
+      for (int i = 0; i < 8; ++i) {
+        int index = it->stick * 8 + i;
+        pixels[index].r = it->amount * it->color.red + (1-it->amount) * pixels[index].r;
+        pixels[index].g = it->amount * it->color.green + (1-it->amount) * pixels[index].g;
+        pixels[index].b = it->amount * it->color.blue + (1-it->amount) * pixels[index].b;
+      }
+
+      it->tick();
+      if (it->amount <= 0) {
+        it = highlights.erase(it);
+      }
+    }
+    if (isStopping()) {
+      stopCompleted();
+    }
+  }
+  const char *description() {
+    return "Undulation Pattern";
+  }
+};
+
 /* ------------------- */
 
 class RaverPlaid : public Pattern {
@@ -418,7 +485,6 @@ class RaverPlaid : public Pattern {
     float speed_g = -13;
     float speed_b = 19;
     float t = runTime() / 1000. * 5;
-    float runtimeAlpha = (runTime() < 1000 ? runTime() / 1000. : 1.0);
     for (int ii = 0; ii < n_pixels; ++ii) {
         float pct = (ii / (float)n_pixels);
         // diagonal black stripes
@@ -431,9 +497,9 @@ class RaverPlaid : public Pattern {
         char g = blackstripes * remap(cos((t/speed_g + pct*freq_g)*M_PI*2), -1, 1, 0, 255);
         char b = blackstripes * remap(cos((t/speed_b + pct*freq_b)*M_PI*2), -1, 1, 0, 255);
 
-        pixels[ii].r = r * runtimeAlpha;
-        pixels[ii].g = g * runtimeAlpha;
-        pixels[ii].b = b * runtimeAlpha;
+        pixels[ii].r = r;
+        pixels[ii].g = g;
+        pixels[ii].b = b;
     }
     if (isStopping()) {
       stopCompleted();

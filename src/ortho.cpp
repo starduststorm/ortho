@@ -28,8 +28,9 @@ opc_sink sink;
 RaverPlaid raverPlaid;
 Needles needles;
 Bits bitsPattern;
+Undulation undulationPattern;
 
-Pattern *idlePatterns[] = {&raverPlaid, &needles, &bitsPattern};
+Pattern *idlePatterns[] = {&raverPlaid, &needles, &bitsPattern, &undulationPattern};
 const unsigned int kIdlePatternsCount = ARRAY_SIZE(idlePatterns);
 
 Pattern *activePattern = NULL;
@@ -118,10 +119,23 @@ void checkButtons() {
 }
 
 void runPatterns() {
-    for (unsigned i = 0; i < kIdlePatternsCount; ++i) {
+  pixel oldPixels[NUM_LEDS];
+  for (int i = 0; i < NUM_LEDS; ++i) {
+    oldPixels[i] = pixels[i];
+  }
+
+  for (unsigned i = 0; i < kIdlePatternsCount; ++i) {
     Pattern *pattern = idlePatterns[i];
     if (pattern->isRunning() || pattern->isStopping()) {
       pattern->loop(pixels);
+
+      float runTime = pattern->runTime();
+      float runtimeAlpha = (runTime < 1000 ? runTime / 1000. : 1.0);
+      for (int i = 0; i < NUM_LEDS; ++i) {
+        pixels[i].r = runtimeAlpha * pixels[i].r + (1 - runtimeAlpha) * oldPixels[i].r;
+        pixels[i].g = runtimeAlpha * pixels[i].g + (1 - runtimeAlpha) * oldPixels[i].g;
+        pixels[i].b = runtimeAlpha * pixels[i].b + (1 - runtimeAlpha) * oldPixels[i].b;
+      }
     }
   }
 
@@ -167,10 +181,12 @@ void loop() {
   } else {
     runPatterns();
   }
+#if RASPBERRY_PI
   if (0 == opc_put_pixels(sink, 0, NUM_LEDS, pixels)) {
     // Failed to connect to fadecandy, don't spam it
     sleep(5);
   }
+#endif
 
   long frameTime = millis() - lastFrame;
   if (frameTime < 1000./fps_cap) {

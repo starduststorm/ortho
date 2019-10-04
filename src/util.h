@@ -91,8 +91,8 @@ float remap(float x, float oldmin, float oldmax, float newmin, float newmax) {
 }
 
 float util_cos(float x, float offset, float period, float minn, float maxx) {
-    float value = cos((x/period - offset) * M_PI * 2) / 2 + 0.5;
-    return value*(maxx-minn) + minn;
+  float value = cos((x/period - offset) * M_PI * 2) / 2 + 0.5;
+  return value*(maxx-minn) + minn;
 }
 
 float clamp(float x, float minn, float maxx) {
