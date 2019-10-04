@@ -390,7 +390,7 @@ class Undulation : public Pattern {
     Color color;
     Highlight() {
       stick = random8(NUM_LEDS / 8);
-      color = Color::HSB(random8(), 0xFF, 0xFF);
+      
       amount = 1.0;
     }
     void tick() {
@@ -401,11 +401,17 @@ class Undulation : public Pattern {
   std::vector<Highlight> highlights;
   long lastHighlight = 0;
 
+  int submode;
+  int baseHue;
+
   void start() {
     Pattern::start();
+    submode = random8(3);
+    baseHue = random8();
   }
 
   void update(pixel pixels[]) {
+
     float t = runTime() / 1000.;
     for (int stick = 0; stick < NUM_LEDS / 8; ++stick) {
       float period = 4;// + util_cos(t, 0.01 * stick, 10, 0, 1);
@@ -413,9 +419,15 @@ class Undulation : public Pattern {
       int hue = 0;//util_cos(t, -0.21 * stick, 40, 0, 0xFF);
       for (int i = 0; i < 8; ++i) {
         int bright = fmax(0, util_cos(t, 0.01 * stick + 0.1 * i, period, -30, 0x60));
-
         int index = 8 * stick + i;
-        Color c = Color::HSB(hue, sat, bright);
+
+        Color c;
+        if (submode == 0) {
+          c = Color::HSB(hue, sat, bright);
+        } else {
+          c = Color::HSB(baseHue, 0xFF, bright);
+        }
+        
         pixels[index].r = c.red;
         pixels[index].g = c.green;
         pixels[index].b = c.blue;
@@ -424,7 +436,16 @@ class Undulation : public Pattern {
 
     if (millis() - lastHighlight > 100) {
       Highlight h;
-      highlights.push_back(h);
+      if (submode == 0) {
+        h.color =Color::HSB(random8(), 0xFF, 0xFF);
+        highlights.push_back(h);
+      } else if (submode == 1) {
+        h.color =Color::HSB(0, 0, 0xFF);
+        highlights.push_back(h);
+      } else if (submode == 2) {
+        // no highlights
+      }
+      
       lastHighlight = millis();
     }
     for (std::vector<Highlight>::iterator it = highlights.begin(); it != highlights.end(); ++it) {

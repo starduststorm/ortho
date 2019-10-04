@@ -2,6 +2,10 @@
     "listen": ["127.0.0.1", 7890],
     "verbose": true,
     
+    "color": {
+        "whitepoint": [0.7, 0.7, 0.7]
+    },
+    
     "devices": [
         {
             "type": "fadecandy",
