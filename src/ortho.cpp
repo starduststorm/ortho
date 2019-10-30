@@ -96,18 +96,25 @@ void nextPattern() {
 
 void checkButtons() {
 #if RASPBERRY_PI
+
+  static long powerDownInterval = 2000;
   static bool modeButtonPressed = false;
   static long modeButtonPressedMillis = -1;
 
   bool oldModeButtonPressed = modeButtonPressed;
   modeButtonPressed = (digitalRead(modeButtonPin) == HIGH);
+  
   if (modeButtonPressed && !oldModeButtonPressed) {
-    printf("Mode button pressed\n");
+    printf("Mode button press down\n");
     modeButtonPressedMillis = millis();
+  }
+  if (!modeButtonPressed && oldModeButtonPressed 
+    && millis() - modeButtonPressedMillis < powerDownInterval) { // don't turn back on if we just turned off
+    printf("Mode button press up\n");
     nextPattern();
     displayOn = true;
   }
-  if (displayOn && modeButtonPressed && millis() - modeButtonPressedMillis > 2000) {
+  if (displayOn && modeButtonPressed && millis() - modeButtonPressedMillis > powerDownInterval) {
     printf("Turning off...\n");
     if (activePattern) {
       activePattern->stop();

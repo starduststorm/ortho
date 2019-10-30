@@ -1,0 +1,2 @@
+ORTHO_PATH="`dirname \"$0\"`"
+rsync -avz -e ssh --exclude="bin" $ORTHO_PATH/ ortho.local:src/ortho/

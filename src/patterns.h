@@ -420,6 +420,7 @@ class Undulation : public Pattern {
       int sat = 0;//fmax(0, util_cos(t, 0.31 * stick, 30, -2*0xFF, 0xFF));
       int hue = 0;//util_cos(t, -0.21 * stick, 40, 0, 0xFF);
       for (int i = 0; i < 8; ++i) {
+        // TODO: offset could be improved here to show more difference in phase from stick to stick
         int bright = fmax(0, util_cos(t, 0.01 * stick + 0.1 * i, period, -30, 0x60));
         int index = 8 * stick + i;
 
