@@ -385,16 +385,25 @@ class Bits : public Pattern {
 class Undulation : public Pattern {
   class Highlight {
   public:
+    static const long lifespan = 2000;
     int stick;
     float amount;
     Color color;
+    long startMillis;
+    bool dead = false;
     Highlight() {
       stick = random8(NUM_LEDS / 8);
-      
-      amount = 1.0;
+      startMillis = millis();
+      tick();
     }
     void tick() {
-      amount -= 0.01;
+      long duration = millis() - startMillis;
+      if (duration > lifespan) {
+        dead = true;
+        amount = 0;
+      } else {
+        amount = util_cos(duration, 0.50, lifespan, 0, 1.0);
+      }
     }
   };
 
@@ -440,10 +449,10 @@ class Undulation : public Pattern {
     if (millis() - lastHighlight > 100) {
       Highlight h;
       if (submode == 0) {
-        h.color =Color::HSB(random8(), 0xFF, 0xFF);
+        h.color = Color::HSB(random8(), 0xFF, 0xFF);
         highlights.push_back(h);
       } else if (submode == 1) {
-        h.color =Color::HSB(0, 0, 0xFF);
+        h.color = Color::HSB(0, 0, 0xFF);
         highlights.push_back(h);
       } else if (submode == 2) {
         // no highlights
@@ -460,7 +469,7 @@ class Undulation : public Pattern {
       }
 
       it->tick();
-      if (it->amount <= 0) {
+      if (it->dead) {
         it = highlights.erase(it);
       }
     }

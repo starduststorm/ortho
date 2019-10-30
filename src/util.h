@@ -187,4 +187,10 @@ Color Color::White = Color::RGB(0xFF, 0xFF, 0xFF);
 Color Color::Black = Color::RGB(0, 0, 0);
 Color Color::DeepPink = Color::RGB(0xFF, 0x14, 0x93);
 
+float easeInOut(float t)
+{
+    float sqt = t * t;
+    return sqt / (2.0f * (sqt - t) + 1.0f);
+}
+
 #endif
