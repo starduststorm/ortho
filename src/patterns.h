@@ -5,7 +5,7 @@
 #include "util.h"
 #include "palettes.h"
 #include <unistd.h>
-#include "math.h"
+#include <math.h>
 
 class Pattern {
   protected:
@@ -169,7 +169,9 @@ public:
   void update(pixel pixels[]) {
     long mils = millis();
 
-    fadeDownBy(0.02);
+    if (!isStopping()) {
+      fadeDownBy(0.02);
+    }
 
     const float density = 1;//max(0.01, 1 + sin(millis / 1000. / 5));
     
@@ -446,7 +448,7 @@ class Undulation : public Pattern {
       }
     }
 
-    if (millis() - lastHighlight > 100) {
+    if (millis() - lastHighlight > 140) {
       Highlight h;
       if (submode == 0) {
         h.color = Color::HSB(random8(), 0xFF, 0xFF);
@@ -491,6 +493,7 @@ class RaverPlaid : public Pattern {
   float freq_r = default_freq;
   float freq_g = default_freq;
   float freq_b = default_freq;
+  int mode;
 
   void start() {
     Pattern::start();
@@ -506,6 +509,8 @@ class RaverPlaid : public Pattern {
       freq_b = random8(18, 30);;
       printf("  frequencies %f, %f, %f\n", freq_r, freq_g, freq_b);
     }
+    // 20% chance to cut out each channel
+    mode = random8(5);
   }
 
   void update(pixel pixels[]) {
@@ -530,6 +535,10 @@ class RaverPlaid : public Pattern {
         char g = blackstripes * remap(cos((t/speed_g + pct*freq_g)*M_PI*2), -1, 1, 0, 255);
         char b = blackstripes * remap(cos((t/speed_b + pct*freq_b)*M_PI*2), -1, 1, 0, 255);
 
+        r = (mode == 2 ? 0 : r);
+        g = (mode == 3 ? 0 : g);
+        b = (mode == 4 ? 0 : b);
+
         pixels[ii].r = r;
         pixels[ii].g = g;
         pixels[ii].b = b;
@@ -541,6 +550,67 @@ class RaverPlaid : public Pattern {
   }
   const char *description() {
     return "Raver Plaid";
+  }
+};
+
+class Breathe : public Pattern {
+  float lastValue;
+  int hueOffset;
+  
+  void start() {
+    lastValue = -1;
+    if (random8(3) == 0) {
+      hueOffset = -1;
+    } else {
+      hueOffset = random8();
+    }
+    printf("  hue offset %i\n", hueOffset);
+    Pattern::start();
+  }
+
+  void update(pixel pixels[]) {
+    float value = util_cos(millis(), 0, 8000, 0, STRIP_LENGTH);
+    if (lastValue == -1) {
+      lastValue = value;
+    }
+
+    // we want to gently fade in the next light
+    float integral;
+    float frac = modff(value, &integral);
+    int index = (int)value;
+    int prelightOffset = (lastValue > value ? -1 : 1);
+    int prelightBrightness = (lastValue > value ? 1 - frac : frac) * 0xFF;
+
+    for (int s = 0; s < STRIP_COUNT; ++s) {
+      int prelightIndex = fmax(0, fmin(STRIP_LENGTH - 1, index + prelightOffset));
+      prelightIndex += s * STRIP_LENGTH;
+      int lightIndex = index + s * STRIP_LENGTH;
+
+      float fadeInAlpha = (runTime() < 1000 ? runTime() / 1000. : 1.0);
+      int saturation = (hueOffset == -1 ? 0 : 200);
+
+      Color prelightColor = Color::HSB(hueOffset + index, saturation, prelightBrightness);
+      pixels[prelightIndex].r = fadeInAlpha * prelightColor.red;
+      pixels[prelightIndex].g = fadeInAlpha * prelightColor.green;
+      pixels[prelightIndex].b = fadeInAlpha * prelightColor.blue;
+
+      Color lightColor = Color::HSB(hueOffset + index, saturation, 0xFF);
+      pixels[lightIndex].r = fadeInAlpha * lightColor.red;
+      pixels[lightIndex].g = fadeInAlpha * lightColor.green;
+      pixels[lightIndex].b = fadeInAlpha * lightColor.blue;
+    }
+    lastValue = value;
+
+    if (!isStopping()) {
+      fadeDownBy(0.02);
+    }
+    if (isStopping()) {
+      stopCompleted();
+    }
+  }
+
+  const char *description() {
+    return "Breathe";
   }
 };
 

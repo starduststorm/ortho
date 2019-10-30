@@ -20,17 +20,13 @@
 pixel pixels[NUM_LEDS];
 opc_sink sink;
 
-// CenterPulse centerPulsePattern;
-// StandingWaves standingWavesPattern;
-// Droplets dropletsPattern;
-// Bits bitsPattern;
-// SmoothPalettes smoothPalettes;
 RaverPlaid raverPlaid;
 Needles needles;
 Bits bitsPattern;
 Undulation undulationPattern;
+Breathe breathePattern;
 
-Pattern *idlePatterns[] = {&raverPlaid, &needles, &bitsPattern, &undulationPattern};
+Pattern *idlePatterns[] = {&raverPlaid, &needles, &bitsPattern, &undulationPattern, &breathePattern};
 const unsigned int kIdlePatternsCount = ARRAY_SIZE(idlePatterns);
 
 Pattern *activePattern = NULL;
@@ -103,7 +99,7 @@ void checkButtons() {
 
   bool oldModeButtonPressed = modeButtonPressed;
   modeButtonPressed = (digitalRead(modeButtonPin) == HIGH);
-  
+
   if (modeButtonPressed && !oldModeButtonPressed) {
     printf("Mode button press down\n");
     modeButtonPressedMillis = millis();
