@@ -124,6 +124,7 @@ class Needles : public Pattern {
     int light;
     int direction;
     bool active;
+    Color color;
     Needle() {
       reset();
       active = false; // start out inactive
@@ -161,7 +162,8 @@ public:
   }
   void start() {
     Pattern::start();
-    submode = random8(2);
+    submode = random8(3);
+    printf("  submode %i\n", submode);
     palette = paletteManager.randomPalette();
     lastStartMillis = millis();
   }
@@ -186,6 +188,9 @@ public:
         } while (needles[stick].active == true && attempts++ < 20);
         if (attempts < 20) {
           needles[stick].reset();
+          if (submode == 2) {
+            needles[stick].color = palette.getRandom();
+          }
         }
         lastStartMillis = mils;
       }
@@ -203,9 +208,10 @@ public:
           int hue = leader % 0x100;
           color = Color::HSB(leader % 0x100, 0xFF, 0xFF);
         } else if (submode == 1) {
-          // cool accidental twinkly effect due to `i` scaling down as `needles` is cleared out
-          // FIXME: this is less interesting now after I've ported it to C++ and used a constant-size array
+          // Palette in order
           color = palette.getColor((leader+10*activeNeedles) % 0x100);
+        } else if (submode == 2) {
+          color = needles[i].color;
         }
         
         pixels[index].r = color.red;
