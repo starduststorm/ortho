@@ -5,17 +5,13 @@
 #include <wiringPi.h>
 #endif
 #include "opc/opc.h"
-
-
-#define SERIAL_LOGGING 0
-#define STRIP_LENGTH 64
-#define STRIP_COUNT 12
-#define NUM_LEDS (STRIP_LENGTH * STRIP_COUNT)
-#define UNCONNECTED_PIN 14
+#include "ortho.h"
 
 #include "util.h"
 #include "patterns.h"
 
+#define SERIAL_LOGGING 0
+#define UNCONNECTED_PIN 14
 
 pixel pixels[NUM_LEDS];
 opc_sink sink;

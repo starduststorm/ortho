@@ -1,7 +1,7 @@
 #ifndef PATTERN_H
 #define PATTERN_H
 
-#include "opc/opc.h"
+#include "ortho.h"
 #include "util.h"
 #include "palettes.h"
 #include <unistd.h>
@@ -117,7 +117,7 @@ class Pattern {
 
 
 class Needles : public Pattern {
-  static const int needleLength = 8;
+  static const int needleLength = STICK_LENGTH;
 
   class Needle {
   public:
@@ -394,7 +394,7 @@ class Undulation : public Pattern {
     long startMillis;
     bool dead = false;
     Highlight() {
-      stick = random8(NUM_LEDS / 8);
+      stick = random8(NUM_LEDS / STICK_LENGTH);
       startMillis = millis();
       tick();
     }
@@ -426,14 +426,14 @@ class Undulation : public Pattern {
   void update(pixel pixels[]) {
 
     float t = runTime() / 1000.;
-    for (int stick = 0; stick < NUM_LEDS / 8; ++stick) {
+    for (int stick = 0; stick < NUM_LEDS / STICK_LENGTH; ++stick) {
       float period = 4;// + util_cos(t, 0.01 * stick, 10, 0, 1);
       int sat = 0;//fmax(0, util_cos(t, 0.31 * stick, 30, -2*0xFF, 0xFF));
       int hue = 0;//util_cos(t, -0.21 * stick, 40, 0, 0xFF);
-      for (int i = 0; i < 8; ++i) {
+      for (int i = 0; i < STICK_LENGTH; ++i) {
         // TODO: offset could be improved here to show more difference in phase from stick to stick
         int bright = fmax(0, util_cos(t, 0.01 * stick + 0.1 * i, period, -30, 0x60));
-        int index = 8 * stick + i;
+        int index = STICK_LENGTH * stick + i;
 
         Color c;
         if (submode == 0) {
@@ -463,8 +463,8 @@ class Undulation : public Pattern {
       lastHighlight = millis();
     }
     for (std::vector<Highlight>::iterator it = highlights.begin(); it < highlights.end(); ++it) {
-      for (int i = 0; i < 8; ++i) {
-        int index = it->stick * 8 + i;
+      for (int i = 0; i < STICK_LENGTH; ++i) {
+        int index = it->stick * STICK_LENGTH + i;
         pixels[index].r = it->amount * it->color.red + (1-it->amount) * pixels[index].r;
         pixels[index].g = it->amount * it->color.green + (1-it->amount) * pixels[index].g;
         pixels[index].b = it->amount * it->color.blue + (1-it->amount) * pixels[index].b;
@@ -554,11 +554,38 @@ class RaverPlaid : public Pattern {
 };
 
 class Breathe : public Pattern {
+  class Stick {
+  public:
+    int stick;
+    long startMillis;
+    int direction = 0;
+    void fadeUp() {
+      startMillis = millis();
+      direction = 1;
+    }
+    void fadeDown() {
+      startMillis = millis();
+      direction = -1;
+    }
+    float amount() {
+      float progress = (millis() - startMillis) / 500.;
+      return fmax(0, fmin(1.0, direction > 0 ? progress : 1 - progress));
+    }
+  };
+
   float lastValue;
   int hueOffset;
-  
+  int mode;
+
+  std::vector<Stick> sticks;
+  int generator = -1;
+
   void start() {
+    sticks.clear();
     lastValue = -1;
+    mode = random8(2);
+    printf("  mode %i\n", mode);
+
     if (random8(3) == 0) {
       hueOffset = -1;
     } else {
@@ -568,8 +595,8 @@ class Breathe : public Pattern {
     Pattern::start();
   }
 
-  void update(pixel pixels[]) {
-    float value = util_cos(millis(), 0, 8000, 0, STRIP_LENGTH);
+  void linearBreathe(pixel pixels[]) {
+    float value = util_cos(runTime(), 0, 8000, 0, STRIP_LENGTH);
     if (lastValue == -1) {
       lastValue = value;
     }
@@ -582,29 +609,91 @@ class Breathe : public Pattern {
     int prelightBrightness = (lastValue > value ? 1 - frac : frac) * 0xFF;
 
     for (int s = 0; s < STRIP_COUNT; ++s) {
-      int prelightIndex = fmax(0, fmin(STRIP_LENGTH - 1, index + prelightOffset));
-      prelightIndex += s * STRIP_LENGTH;
-      int lightIndex = index + s * STRIP_LENGTH;
+      int prelightIndex = fmax(0, fmin(STRIP_LENGTH - 1, index + prelightOffset)) + s * STRIP_LENGTH;
+      int lightIndex    = fmax(0, fmin(STRIP_LENGTH - 1, index)) + s * STRIP_LENGTH;
 
       float fadeInAlpha = (runTime() < 1000 ? runTime() / 1000. : 1.0);
       int saturation = (hueOffset == -1 ? 0 : 200);
 
       Color prelightColor = Color::HSB(hueOffset + index, saturation, prelightBrightness);
+      Color lightColor = Color::HSB(hueOffset + index, saturation, 0xFF);
+
       pixels[prelightIndex].r = fadeInAlpha * prelightColor.red;
       pixels[prelightIndex].g = fadeInAlpha * prelightColor.green;
       pixels[prelightIndex].b = fadeInAlpha * prelightColor.blue;
-
-      Color lightColor = Color::HSB(hueOffset + index, saturation, 0xFF);
+      
       pixels[lightIndex].r = fadeInAlpha * lightColor.red;
       pixels[lightIndex].g = fadeInAlpha * lightColor.green;
       pixels[lightIndex].b = fadeInAlpha * lightColor.blue;
     }
     lastValue = value;
+  }
 
+  void popcornBreathe(pixel pixels[]) {
+    // use 5, 7, 11 as generators for group of size 96
+    int numSticks = NUM_LEDS / STICK_LENGTH;
+    const int generators[] = {23, 37, 53, 67, 83, 101, 137, 163};
+
+    float value = util_cos(runTime(), 0.5, 7000, -4, numSticks);
+    if (lastValue == -1) {
+      lastValue = value;
+    }
+    if (value < 0) {
+      // pause in between
+      generator = -1;
+    } else if (generator == -1) {
+      generator = generators[random8(ARRAY_SIZE(generators))];
+      for (std::vector<Stick>::iterator it = sticks.begin(); it != sticks.end(); ++it) {
+        it->direction = 0;
+      }
+    }
+    
+    if (lastValue > value) {
+      for (int i = sticks.size() - 1; i >= 0 && i >= value; --i) {
+        if (sticks[i].direction != -1) {
+          sticks[i].fadeDown();
+        }
+      }
+    } else {
+      for (int i = 0; i < value; ++i) {
+        while (i > (long)sticks.size() - 1) {
+          Stick s;
+          sticks.push_back(s);
+        }
+        if (sticks[i].direction != 1) {
+          sticks[i].stick = ((i + 1) * generator) % numSticks;
+          sticks[i].fadeUp();
+        }
+      }
+    }
+
+    float fadeInAlpha = fmin(0.4, (runTime() < 1000 ? runTime() / 1000. : 1.0));
+    int saturation = (hueOffset == -1 ? 0 : 200);
+    
+    for (std::vector<Stick>::iterator it = sticks.begin(); it != sticks.end(); ++it) {
+      if (it->direction == 0) {
+        continue;
+      }
+      int index = it->stick;
+      Color lightColor = Color::HSB(hueOffset, saturation, it->amount() * 0xFF);
+      for (int i = 0; i < STICK_LENGTH; ++i) {
+        pixels[index * STICK_LENGTH + i].r = fadeInAlpha * lightColor.red;
+        pixels[index * STICK_LENGTH + i].g = fadeInAlpha * lightColor.green;
+        pixels[index * STICK_LENGTH + i].b = fadeInAlpha * lightColor.blue;
+      }
+    }
+    lastValue = value;
+  }
+
+  void update(pixel pixels[]) {
+    if (mode == 0) {
+      linearBreathe(pixels);
+    } else {
+      popcornBreathe(pixels);
+    }
     if (!isStopping()) {
       fadeDownBy(0.02);
-    }
-    if (isStopping()) {
+    } else {
       stopCompleted();
     }
   }

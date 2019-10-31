@@ -3,8 +3,8 @@
     "verbose": true,
     
     "color": {
-        "gamma": 1.8,
-        "whitepoint": [0.7, 0.7, 0.7],
+        "gamma": 2.2,
+        "whitepoint": [0.8, 0.8, 0.8],
         "linearSlope": 1.0,
         "linearCutoff": 0.0039
     },
