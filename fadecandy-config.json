@@ -5,8 +5,7 @@
     "color": {
         "gamma": 2.2,
         "whitepoint": [0.8, 0.8, 0.8],
-        "linearSlope": 1.0,
-        "linearCutoff": 0.0039
+        "linearSlope": 1.0
     },
     
     "devices": [

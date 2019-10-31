@@ -384,6 +384,8 @@ class Bits : public Pattern {
     }
 };
 
+/* ------------------- */
+
 class Undulation : public Pattern {
   class Highlight {
   public:
@@ -553,6 +555,8 @@ class RaverPlaid : public Pattern {
   }
 };
 
+/* ------------------- */
+
 class Breathe : public Pattern {
   class Stick {
   public:
@@ -612,19 +616,18 @@ class Breathe : public Pattern {
       int prelightIndex = fmax(0, fmin(STRIP_LENGTH - 1, index + prelightOffset)) + s * STRIP_LENGTH;
       int lightIndex    = fmax(0, fmin(STRIP_LENGTH - 1, index)) + s * STRIP_LENGTH;
 
-      float fadeInAlpha = (runTime() < 1000 ? runTime() / 1000. : 1.0);
       int saturation = (hueOffset == -1 ? 0 : 200);
 
       Color prelightColor = Color::HSB(hueOffset + index, saturation, prelightBrightness);
       Color lightColor = Color::HSB(hueOffset + index, saturation, 0xFF);
 
-      pixels[prelightIndex].r = fadeInAlpha * prelightColor.red;
-      pixels[prelightIndex].g = fadeInAlpha * prelightColor.green;
-      pixels[prelightIndex].b = fadeInAlpha * prelightColor.blue;
+      pixels[prelightIndex].r = prelightColor.red;
+      pixels[prelightIndex].g = prelightColor.green;
+      pixels[prelightIndex].b = prelightColor.blue;
       
-      pixels[lightIndex].r = fadeInAlpha * lightColor.red;
-      pixels[lightIndex].g = fadeInAlpha * lightColor.green;
-      pixels[lightIndex].b = fadeInAlpha * lightColor.blue;
+      pixels[lightIndex].r = lightColor.red;
+      pixels[lightIndex].g = lightColor.green;
+      pixels[lightIndex].b = lightColor.blue;
     }
     lastValue = value;
   }
@@ -667,7 +670,7 @@ class Breathe : public Pattern {
       }
     }
 
-    float fadeInAlpha = fmin(0.4, (runTime() < 1000 ? runTime() / 1000. : 1.0));
+    float alphaLimiter = 0.4;
     int saturation = (hueOffset == -1 ? 0 : 200);
     
     for (std::vector<Stick>::iterator it = sticks.begin(); it != sticks.end(); ++it) {
@@ -677,9 +680,9 @@ class Breathe : public Pattern {
       int index = it->stick;
       Color lightColor = Color::HSB(hueOffset, saturation, it->amount() * 0xFF);
       for (int i = 0; i < STICK_LENGTH; ++i) {
-        pixels[index * STICK_LENGTH + i].r = fadeInAlpha * lightColor.red;
-        pixels[index * STICK_LENGTH + i].g = fadeInAlpha * lightColor.green;
-        pixels[index * STICK_LENGTH + i].b = fadeInAlpha * lightColor.blue;
+        pixels[index * STICK_LENGTH + i].r = alphaLimiter * lightColor.red;
+        pixels[index * STICK_LENGTH + i].g = alphaLimiter * lightColor.green;
+        pixels[index * STICK_LENGTH + i].b = alphaLimiter * lightColor.blue;
       }
     }
     lastValue = value;
