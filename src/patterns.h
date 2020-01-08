@@ -440,6 +440,11 @@ class Undulation : public Pattern {
       int hue = 0;//util_cos(t, -0.21 * stick, 40, 0, 0xFF);
       for (int i = 0; i < STICK_LENGTH; ++i) {
         // TODO: offset could be improved here to show more difference in phase from stick to stick
+
+        // TODO: add submode where a couple lights just go back and forth across each stick smoothly
+
+
+
         int bright = fmax(0, util_cos(t, 0.01 * stick + 0.1 * i, period, -30, 0x60));
         int index = STICK_LENGTH * stick + i;
 

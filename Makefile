@@ -20,6 +20,6 @@ all: $(ALL)
 clean:
 	rm -rf bin/*
 
-bin/ortho: src/ortho.h src/ortho.cpp src/patterns.h src/util.h src/palettes.h src/opc/opc_client.c src/opc/opc.h src/opc/types.h
+bin/ortho: src/ortho.h src/ortho.cpp src/patterns.h src/util.h src/palettes.h src/HomeBridgeListener.h src/opc/opc_client.c src/opc/opc.h src/opc/types.h
 	mkdir -p bin
 	g++ ${CPPFLAGS} -o $@ src/ortho.cpp src/opc/opc_client.c

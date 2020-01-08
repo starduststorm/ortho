@@ -9,6 +9,7 @@
 
 #include "util.h"
 #include "patterns.h"
+#include "HomeBridgeListener.h"
 
 #define SERIAL_LOGGING 0
 #define UNCONNECTED_PIN 14
@@ -41,6 +42,7 @@ Pattern *testIdlePattern = NULL;//&bitsPattern;
 
 unsigned long lastTrigger = 0;
 FrameCounter fc;
+HomeBridgeListener *hbl;
 
 int first_pattern = -1;
 long lastFrame = 0;
@@ -68,6 +70,8 @@ void setup() {
     fclose(frand);
   }
 
+  hbl = new HomeBridgeListener();
+
 #if RASPBERRY_PI
   wiringPiSetupGpio();
   pinMode(modeButtonPin, INPUT);
@@ -84,6 +88,19 @@ void nextPattern() {
     lastPattern = activePattern;
   }
   activePattern = NULL;
+}
+
+void setDisplayOn(bool on) {
+  if (on) {
+    nextPattern();
+  } else {
+    printf("Turning off...\n");
+    if (activePattern) {
+      activePattern->stop();
+      activePattern = NULL;
+    }
+  }
+  displayOn = on;
 }
 
 void checkButtons() {
@@ -107,12 +124,7 @@ void checkButtons() {
     displayOn = true;
   }
   if (displayOn && modeButtonPressed && millis() - modeButtonPressedMillis > powerDownInterval) {
-    printf("Turning off...\n");
-    if (activePattern) {
-      activePattern->stop();
-      activePattern = NULL;
-    }
-    displayOn = false;
+    setDisplayOn(false);
   }
 #endif
 }
@@ -186,6 +198,11 @@ void loop() {
     sleep(5);
   }
 #endif
+
+  RemoteCommand command = hbl->poll(displayOn);
+  if (command != none) {
+    setDisplayOn(command == on);
+  }
 
   long frameTime = millis() - lastFrame;
   if (frameTime < 1000./fps_cap) {
