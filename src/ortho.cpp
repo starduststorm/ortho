@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <signal.h>
 #if RASPBERRY_PI
 #include <wiringPi.h>
 #endif
@@ -33,7 +34,7 @@ bool triggerIsActive = false;
 
 /* ---- Test Options ---- */
 const bool kTestPatternTransitions = false;
-const int kIdlePatternTimeout = 1000 * (kTestPatternTransitions ? 20 : 60 * 2);
+const int kIdlePatternTimeout = 1000 * (kTestPatternTransitions ? 20 : 60 * 2); // 0 for no timeout
 const unsigned long kTestTriggerAtInterval = 0;//10000;//1000 * 35;//1000 * 10; // 0 for no test
 
 Pattern *testIdlePattern = NULL;//&bitsPattern;
@@ -158,14 +159,13 @@ void runPatterns() {
   }
 
   // time out idle patterns
-  // Disabled for tranciness
-  // if (!triggerIsActive && activePattern != NULL && activePattern->isRunning() && activePattern->runTime() > kIdlePatternTimeout) {
-  //   if (activePattern != testIdlePattern && activePattern->wantsToIdleStop()) {
-  //     activePattern->lazyStop();
-  //     lastPattern = activePattern;
-  //     activePattern = NULL;
-  //   }
-  // }
+  if (kIdlePatternTimeout > 0 && !triggerIsActive && activePattern != NULL && activePattern->isRunning() && activePattern->runTime() > kIdlePatternTimeout) {
+    if (activePattern != testIdlePattern && activePattern->wantsToIdleStop()) {
+      activePattern->lazyStop();
+      lastPattern = activePattern;
+      activePattern = NULL;
+    }
+  }
 
   // start a new idle pattern
   if (activePattern == NULL) {
@@ -195,7 +195,7 @@ void loop() {
 #if RASPBERRY_PI
   if (0 == opc_put_pixels(sink, 0, NUM_LEDS, pixels)) {
     // Failed to connect to fadecandy, don't spam it
-    sleep(5);
+    sleep(2);
   }
 #endif
 
@@ -213,10 +213,49 @@ void loop() {
   fc.tick();
 }
 
+void we_get_signal(int signum)
+{
+  printf("Caught sig %i!\n", signum);
+  setDisplayOn(false);
+  long start = millis();
+  while (1) {
+    loop();
+    bool pixelsOn = false;
+    for (int i = 0; i < NUM_LEDS; ++i) { \
+      if (pixels[i].r != 0 || pixels[i].b != 0 || pixels[i].g != 0) {
+        pixelsOn = true;
+        break;
+      }
+    }
+    if (!pixelsOn) {
+      printf("Turned off.\n");
+      break;
+    }
+    if (millis() - start > 1000) {
+      printf("Timed out.\n");
+      break;
+    }
+  }
+  exit(signum);
+}
+
+void handle_signals() {
+    struct sigaction termaction;
+    memset(&termaction, 0, sizeof(termaction));
+    termaction.sa_handler = we_get_signal;
+    sigaction(SIGTERM, &termaction, NULL);
+
+    struct sigaction intaction;
+    memset(&intaction, 0, sizeof(intaction));
+    intaction.sa_handler = we_get_signal;
+    sigaction(SIGINT, &intaction, NULL);
+}
+
 int main(int argc, char *argv[]) {
   if (argc == 2) {
     first_pattern = atoi(argv[1]);
   }
+  handle_signals();
   setup();
   while (1) {
     loop();
