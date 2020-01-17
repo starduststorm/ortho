@@ -13,7 +13,7 @@ class Pattern {
     long stopTime = -1;
     Pattern *subPattern = NULL;
 
-    void stopCompleted() {
+    virtual void stopCompleted() {
       if (!readyToStop()) {
         logf("WARNING: stopped %s before subPattern was stopped", description());
       }
