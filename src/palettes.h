@@ -1,4 +1,5 @@
 #include <vector>
+#include "util.h"
 
 #define DEFINE_GRADIENT_PALETTE(X) \
 const uint8_t X[] = 
@@ -529,7 +530,7 @@ const uint8_t* gGradientPalettes[] = {
   Coral_reef_gp,
   es_ocean_breeze_068_gp,
   es_pinksplash_07_gp,
-  es_vintage_01_gp,
+  es_vintage_01_gp,           // 10
   departure_gp,
   es_landscape_64_gp,
   es_landscape_33_gp,
@@ -539,7 +540,7 @@ const uint8_t* gGradientPalettes[] = {
   GMT_drywet_gp,
   ib_jul01_gp,
   es_vintage_57_gp,
-  ib15_gp,
+  ib15_gp,                    // 20
   Fuschia_7_gp,
   es_emerald_dragon_08_gp,
   lava_gp,
@@ -549,7 +550,7 @@ const uint8_t* gGradientPalettes[] = {
   Pink_Purple_gp,
   es_autumn_19_gp,
   BlacK_Blue_Magenta_White_gp,
-  BlacK_Magenta_Red_gp,
+  BlacK_Magenta_Red_gp,        // 30
   BlacK_Red_Magenta_Yellow_gp,
   Blue_Cyan_Yellow_gp
 };
@@ -577,6 +578,10 @@ private:
 public:
   std::vector<uint8_t> positions;
   std::vector<Color> colors;
+
+  int count() {
+    return positions.size();
+  }
 
   Palette() {
     const uint8_t paletteData[] = {
@@ -625,42 +630,54 @@ public:
 //   }
 // }
 
+static int linearBrightness(Color color) {
+  // I'm looking at you fire_gp
+  return (color.r + color.g + color.b);
+}
+
+template <class T>
 class PaletteManager {
+private:
+  std::vector<T> palettes;
+
+  bool paletteHasColorBelowThreshold(T *palette, uint8_t minBrightness) {
+    if (minBrightness == 0) {
+      return false;
+    }
+    for (uint16_t i = 0; i < palette->count(); ++i) {
+      if (linearBrightness(palette->colors[i]) < minBrightness) {
+        return true;
+      }
+    }
+    return false;
+  }
 public:
-  std::vector<Palette> palettes;
-  
   PaletteManager() {
     for (int p = 0; p < gGradientPaletteCount; ++p) {
       Palette palette = Palette(gGradientPalettes[p]);
       palettes.push_back(palette);
     }
   }
-  
-  Palette randomPalette() {
-    int i = random() % palettes.size();
-    printf("Picked Palette %u which has %i colors\n", i, (unsigned)palettes[i].colors.size());
-    return palettes[i];
+
+  T getPalette(int choice) {
+    return gGradientPalettes[choice];
   }
   
-  Palette randomNonBlackPalette() {
-    int i;
-    bool hasBlack;
+  T *randomPalette(uint8_t minBrightness=0) {
+    unsigned choice;
+    T *palette;
+    bool belowMinBrightness;
+    int tries = 0;
     do {
-      hasBlack = false;
-      i = random() % palettes.size();
-      Palette p = palettes[i];
-
-      for (int i = 0; i < p.colors.size(); ++i) {
-        Color c = p.colors[i];
-        if (c.red < 20 && c.blue < 20 && c.green < 20) {
-          hasBlack = true;
-          continue;
-        }
-      }
-    } while (hasBlack == true);
-    printf("Picked Light Palette %i\n", i);
-    return palettes[i];
+      choice = random8(palettes.size());
+      palette = &palettes[choice];
+      belowMinBrightness = paletteHasColorBelowThreshold(palette, minBrightness);
+    } while (belowMinBrightness && tries++ < 10);
+    ASSERT(tries < 10, "Tried too many times to pick a palette below threshold");
+    logf("Picked Palette %u", choice);
+    return palette;
   }
 };
 
-PaletteManager paletteManager;
+PaletteManager<Palette> paletteManager;
+

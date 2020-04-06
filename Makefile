@@ -6,7 +6,7 @@ else
     PI_FLAG = -DRASPBERRY_PI -lwiringPi
 endif 
 
-CPPFLAGS=-O2 -g -std=c++11 ${PI_FLAG}
+CPPFLAGS=-O2 -g -std=c++17 ${PI_FLAG}
 ifeq ($(platform),Darwin)
   ALL=bin/ortho
   GL_OPTS=-framework OpenGL -framework GLUT -Wno-deprecated-declarations

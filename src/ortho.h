@@ -7,5 +7,10 @@
 #define NUM_LEDS (STRIP_LENGTH * STRIP_COUNT)
 
 #include "opc/opc.h"
+#include "util.h"
+
+// FIXME: need a proper drawing solution
+void set(int index, Color c, float bright);
+void set(int index, Color c);
 
 #endif

@@ -6,6 +6,11 @@
 #include "palettes.h"
 #include <unistd.h>
 #include <math.h>
+#include <list>
+#include <vector>
+#include <random>
+#include <algorithm>
+#include <unordered_set>
 
 class Pattern {
   protected:
@@ -115,114 +120,159 @@ class Pattern {
 
 /* --------------------------- */
 
-
+// FIXME: add auto-palette-rotation
 class Needles : public Pattern {
   static const int needleLength = STICK_LENGTH;
 
   class Needle {
   public:
-    int light;
+    int stickIndex;
+    float val;
     int direction;
+    float speed = 1.0;
     bool active;
     Color color;
-    Needle() {
+    int rangeMin;
+    int rangeMax;
+    Needle(int index, int min, int max) {
+      stickIndex = index;
+      rangeMin = min;
+      rangeMax = max;
+
       reset();
-      active = false; // start out inactive
     }
-    
+
     void reset() {
       direction = (random() % 2) ? 1 : -1;
-      light = direction > 0 ? 0 : needleLength - 1;
+      val = direction > 0 ? rangeMin : rangeMax;
       active = true;
     }
-    
-    
+        
     void tick() {
       if (!active) return;
-      light += direction;
-      if (light < 0 || light >= needleLength) {
+      val += speed * direction;
+      if (val < rangeMin || val > rangeMax) {
         active = false;
       }
     }
   };
 
   int leader;
-  Needle *needles;
-  int numNeedles;
+  std::list<Needle *> activeNeedles;
+  std::unordered_set<Needle *> inactiveNeedles;
   long lastStartMillis = 0;
-  int submode;
-  Palette palette;
+  int mode;
+  int colorMode;
+  Palette *palette;
 public:
   Needles() {
-    numNeedles = NUM_LEDS / needleLength;
-    needles = new Needle[numNeedles];
   }
   ~Needles() {
-    delete[] needles;
+    activeNeedles.clear();
+    inactiveNeedles.clear();
   }
   void start() {
     Pattern::start();
-    submode = random8(3);
-    printf("  submode %i\n", submode);
+    mode = random8(2);
+    colorMode = random8(4);
+    printf("  mode = %i, colorMode %i\n", mode, colorMode);
     palette = paletteManager.randomPalette();
     lastStartMillis = millis();
+
+    for (int i = 0; i < NUM_LEDS / needleLength; ++i) {
+      Needle *needle = new Needle(
+        i,
+        (mode == 0 ? 0            : -needleLength/2), 
+        (mode == 0 ? needleLength : 3 * needleLength/2) - 1);
+
+      inactiveNeedles.insert(needle);
+    }
+  }
+
+  Needle *getActiveNeedle() {
+    std::vector<Needle *> sampled;
+    size_t nelems = 1;
+    std::sample(
+        inactiveNeedles.begin(),
+        inactiveNeedles.end(),
+        std::back_inserter(sampled),
+        1,
+        std::mt19937{std::random_device{}()}
+    );
+    Needle *needle = NULL;
+    if (sampled.size() > 0) {
+      needle = sampled[0];
+      needle->reset();
+      activeNeedles.push_back(needle);
+      inactiveNeedles.erase(needle);
+    }
+    return needle;
   }
 
   void update(pixel pixels[]) {
     long mils = millis();
 
-    if (!isStopping()) {
+    if (mode == 0 && !isStopping()) {
       fadeDownBy(0.02);
     }
 
-    const float density = 1;//max(0.01, 1 + sin(millis / 1000. / 5));
+    const float stickStartInterval = 10;
     
-    long elapsed = mils - lastStartMillis;
-
     if (!isStopping()) {
-      for (int wait = 0; wait < elapsed; wait += 20./density) { 
-        int stick;
-        int attempts = 0;
-        do {
-          stick = random() % numNeedles;
-        } while (needles[stick].active == true && attempts++ < 20);
-        if (attempts < 20) {
-          needles[stick].reset();
-          if (submode == 2) {
-            needles[stick].color = palette.getRandom();
-          }
-        }
+      long elapsed = mils - lastStartMillis;
+      while (elapsed > stickStartInterval) {
+        elapsed -= stickStartInterval;
         lastStartMillis = mils;
+        
+        Needle *needle = getActiveNeedle();
+        if (!needle) continue;
+
+        if (colorMode == 0) { // rainbow
+          int hue = leader % 0x100;
+          needle->color = Color::HSB(leader % 0x100, 0xFF, 0xFF);
+        } else {  // palette
+          needle->color = palette->getRandom();
+        }
+        needle->speed = (mode == 0 ? 1 : 0.2);
       }
     }
     
-    int activeNeedles = 0;
-    for (int i = 0; i < numNeedles; ++i) {
-      if (needles[i].active) {
-        activeNeedles++;
-        int index = (needles[i].light + needleLength * i);
-        
-        Color color;
-        if (submode == 0) {
-          // rainbow
-          int hue = leader % 0x100;
-          color = Color::HSB(leader % 0x100, 0xFF, 0xFF);
-        } else if (submode == 1) {
-          // Palette in order
-          color = palette.getColor((leader+10*activeNeedles) % 0x100);
-        } else if (submode == 2) {
-          color = needles[i].color;
-        }
-        
-        pixels[index].r = color.red;
-        pixels[index].g = color.green;
-        pixels[index].b = color.blue;
+    bool hasActiveNeedles = false;
+    for (auto it = activeNeedles.begin(); it != activeNeedles.end();) {
+      Needle *needle = *it;
+      if (needle->active) {
+        hasActiveNeedles = true;
 
-        needles[i].tick();
+        int index = (needle->val + needleLength * needle->stickIndex);
+        
+        Color color = needle->color;
+        
+        if (mode == 0) {
+          set(index, color);
+        } else {
+          for (int j = 0; j < needleLength; ++j) {
+            float bright = 0;
+            if (abs(needle->val - j) < needleLength) {
+              bright = cos((needle->val - j) / needleLength * M_PI);
+            }
+            if (bright < 0) {
+              bright = 0;
+            }
+
+            set(needle->stickIndex * needleLength + j, color, bright);
+          }
         }
+        needle->tick();
+
+        ++it;
+      } else {
+        inactiveNeedles.insert(*it);
+        it = activeNeedles.erase(it);
       }
+    }
+
     leader++;
-    if (isStopping() && activeNeedles == 0) {
+    if (isStopping() && !hasActiveNeedles) {
       stopCompleted();
     }
   }
@@ -334,7 +384,7 @@ class Bits : public Pattern {
       }
       preset = presets[pick];
 
-      palette = &(paletteManager.palettes[random() % ARRAY_SIZE(gGradientPalettes)]);
+      palette = paletteManager.randomPalette();
       // for monotone
       color = Color::HSB(random8(), random8(8) == 0 ? 0 : random8(200, 255), 255);
 
@@ -426,7 +476,7 @@ class Undulation : public Pattern {
   void start() {
     Pattern::start();
     highlights.clear();
-    submode = random8(3);
+    submode = random8(2); // FIXME: don't use submode 2 cause it's boring
     printf("  submode %i\n", submode);
     baseHue = random8();
   }
@@ -552,9 +602,10 @@ class RaverPlaid : public Pattern {
         g = (mode == 3 ? 0 : g);
         b = (mode == 4 ? 0 : b);
 
-        pixels[ii].r = r;
-        pixels[ii].g = g;
-        pixels[ii].b = b;
+        const float brightness = 0.7;
+        pixels[ii].r = r * brightness;
+        pixels[ii].g = g * brightness;
+        pixels[ii].b = b * brightness;
     }
     if (isStopping()) {
       stopCompleted();
@@ -598,7 +649,7 @@ class Breathe : public Pattern {
   void start() {
     sticks.clear();
     lastValue = -1;
-    mode = random8(2);
+    mode = 1;//random8(2);
     printf("  mode %i\n", mode);
 
     if (random8(3) == 0) {

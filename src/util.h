@@ -8,6 +8,12 @@
 
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof(a[0]))
 
+#if DEBUG
+#define ASSERT(expr, reason) if (!(expr)) { logf("ASSERTION FAILED: %s", reason); while (1) delay(100); }
+#else
+#define ASSERT(expr, reason) if (!(expr)) { logf("ASSERTION FAILED: %s", reason); }
+#endif
+
 #ifndef __WIRING_PI_H__
 long millis() {
   static long start_sec = 0;
@@ -73,6 +79,7 @@ class FrameCounter {
     }
 };
 
+// FIXME: kind of lies because this isn't actually an 8-bit random, just named to match FastLED
 uint8_t random8(uint8_t lowerBound, int upperBound) {
   return random() % (upperBound - lowerBound) + lowerBound;
 }
@@ -101,44 +108,46 @@ float clamp(float x, float minn, float maxx) {
 
 ///
 
-class Color {
-private:
-  void _init(uint8_t red, uint8_t green, uint8_t blue) {
-    this->red = red;
-    this->green = green;
-    this->blue = blue;
-  }
-  Color(uint8_t red, uint8_t green, uint8_t blue) : _description(NULL) {
-    _init(red, green, blue);
-  }
-  char *_description = NULL; // cache
+// slightly cribbed from FastLED
+typedef struct CRGB {
+  union {
+    struct {
+      union {
+        uint8_t r;
+        uint8_t red;
+      };
+      union {
+        uint8_t g;
+        uint8_t green;
+      };
+      union {
+        uint8_t b;
+        uint8_t blue;
+      };
+    };
+    uint8_t raw[3];
+  };
 public:
-  uint8_t red, green, blue;
-
-  Color() {
-    red = 0; green = 0; blue = 0;
-  }
-
-  Color(const Color &oldc) {
-    red = oldc.red;
-    green = oldc.green;
-    blue = oldc.blue;
-  }
-
-  ~Color() {
+  CRGB() { }
+  CRGB(uint8_t r, uint8_t g, uint8_t b) : red(r), green(g), blue(b) { }
+  ~CRGB() {
     free(_description);
+  }
+  inline uint8_t& operator[] (uint8_t x) __attribute__((always_inline)) {
+    return raw[x];
   }
 
   uint8_t blend8(uint8_t a, uint8_t b, float amount) {
     return (1-amount) * a + amount * b;
   }
 
-  Color blendWith(Color c2, float amount) {
+// FIXME: make blending a drop in for FastLED
+  CRGB blendWith(CRGB c2, float amount) {
     amount = fmax(0.0, fmin(1.0, amount));
     uint8_t r = blend8(red, c2.red, amount);
     uint8_t g = blend8(green, c2.green, amount);
     uint8_t b = blend8(blue, c2.blue, amount);
-    return Color::RGB(r, g, b);
+    return CRGB::RGB(r, g, b);
   }
 
   char *description() {
@@ -150,16 +159,14 @@ public:
     return _description;
   }
 
-  //
+  static CRGB White;
+  static CRGB Black;
+  static CRGB DeepPink;
 
-  static Color White;
-  static Color Black;
-  static Color DeepPink;
-
-  static Color RGB(uint8_t red, uint8_t green, uint8_t blue) {
-    return Color(red, green, blue);
+  static CRGB RGB(uint8_t red, uint8_t green, uint8_t blue) {
+    return CRGB(red, green, blue);
   }
-  static Color HSB(uint8_t hue, uint8_t sat, uint8_t bright) {
+  static CRGB HSB(uint8_t hue, uint8_t sat, uint8_t bright) {
     float sat_f = (float)sat / 0xFF;
     float bright_f = (float)bright / 0xFF;
     float c = bright_f * sat_f;
@@ -179,13 +186,18 @@ public:
     } else {
       rp = c; gp = 0; bp = x;
     }
-    return Color((rp + m) * 0xFF, (gp + m) * 0xFF, (bp + m) * 0xFF);
+    return CRGB((rp + m) * 0xFF, (gp + m) * 0xFF, (bp + m) * 0xFF);
   }
-};
 
-Color Color::White = Color::RGB(0xFF, 0xFF, 0xFF);
-Color Color::Black = Color::RGB(0, 0, 0);
-Color Color::DeepPink = Color::RGB(0xFF, 0x14, 0x93);
+private:
+  char *_description = NULL; // cache
+} CRGB;
+
+CRGB CRGB::White = CRGB::RGB(0xFF, 0xFF, 0xFF);
+CRGB CRGB::Black = CRGB::RGB(0, 0, 0);
+CRGB CRGB::DeepPink = CRGB::RGB(0xFF, 0x14, 0x93);
+
+typedef CRGB Color;
 
 float easeInOut(float t)
 {
