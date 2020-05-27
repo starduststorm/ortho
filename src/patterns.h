@@ -276,6 +276,12 @@ public:
       stopCompleted();
     }
   }
+  void stopCompleted() {
+    activeNeedles.clear();
+    inactiveNeedles.clear();
+    Pattern::stopCompleted();
+  }
+
   const char *description() {
     return "Needles";
   }
