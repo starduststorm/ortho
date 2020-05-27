@@ -144,12 +144,26 @@ void checkButtons() {
 }
 
 void runPatterns() {
+  pixel oldPixels[NUM_LEDS];
+  for (int i = 0; i < NUM_LEDS; ++i) {
+    oldPixels[i] = pixels[i];
+  }
+
   for (unsigned i = 0; i < kIdlePatternsCount; ++i) {
     Pattern *pattern = idlePatterns[i];
     if (pattern->isRunning() || pattern->isStopping()) {
       pattern->loop(pixels);
+      
+      float runTime = pattern->runTime();
+      float runtimeAlpha = (runTime < 1000 ? runTime / 1000. : 1.0);
+      for (int i = 0; i < NUM_LEDS; ++i) {
+        pixels[i].r = runtimeAlpha * pixels[i].r + (1 - runtimeAlpha) * oldPixels[i].r;
+        pixels[i].g = runtimeAlpha * pixels[i].g + (1 - runtimeAlpha) * oldPixels[i].g;
+        pixels[i].b = runtimeAlpha * pixels[i].b + (1 - runtimeAlpha) * oldPixels[i].b;
+      }
     }
   }
+
 
   // clear out patterns that have stopped themselves
   if (activePattern != NULL && !activePattern->isRunning()) {
