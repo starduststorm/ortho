@@ -41,6 +41,9 @@ class Pattern {
     }
 
   public:
+    int expectedRunDuration = 60;
+    Pattern() { }
+    Pattern(int expectedDuration) : expectedRunDuration(expectedDuration) { }
     virtual ~Pattern() { }
 
     virtual bool wantsToRun() {
@@ -651,7 +654,10 @@ class Breathe : public Pattern {
 
   std::vector<Stick> sticks;
   int generator = -1;
-
+public:
+  Breathe() : Pattern(21) {
+  }
+private:
   void start() {
     sticks.clear();
     lastValue = -1;
@@ -701,9 +707,9 @@ class Breathe : public Pattern {
   }
 
   void popcornBreathe(pixel pixels[]) {
-    // use 5, 7, 11 as generators for group of size 96
+    // use generators for group of size 96
     int numSticks = NUM_LEDS / STICK_LENGTH;
-    const int generators[] = {23, 37, 53, 67, 83, 101, 137, 163};
+    const int generators[] = {37, 53, 67, 83, 101, 137, 163};
 
     float value = util_cos(runTime(), 0.5, 7000, -4, numSticks);
     if (lastValue == -1) {

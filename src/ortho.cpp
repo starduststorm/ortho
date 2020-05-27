@@ -31,12 +31,8 @@ const unsigned int kIdlePatternsCount = ARRAY_SIZE(idlePatterns);
 Pattern *activePattern = NULL;
 Pattern *lastPattern = NULL;
 
-bool triggerIsActive = false;
-
 /* ---- Test Options ---- */
 const bool kTestPatternTransitions = false;
-const int kIdlePatternTimeout = 1000 * (kTestPatternTransitions ? 20 : 60 * 2); // 0 for no timeout
-const unsigned long kTestTriggerAtInterval = 0;//10000;//1000 * 35;//1000 * 10; // 0 for no test
 
 Pattern *testIdlePattern = NULL;//&bitsPattern;
 
@@ -159,11 +155,10 @@ void runPatterns() {
   if (activePattern != NULL && !activePattern->isRunning()) {
     logf("Clearing inactive pattern %s", activePattern->description());
     activePattern = NULL;
-    triggerIsActive = false; // TODO: better way to detect?
   }
 
   // time out idle patterns
-  if (kIdlePatternTimeout > 0 && !triggerIsActive && activePattern != NULL && activePattern->isRunning() && activePattern->runTime() > kIdlePatternTimeout) {
+  if (activePattern != NULL && activePattern->isRunning() && activePattern->runTime() > (kTestPatternTransitions ? 8 : activePattern->expectedRunDuration * 1000)) {
     if (activePattern != testIdlePattern && activePattern->wantsToIdleStop()) {
       activePattern->lazyStop();
       lastPattern = activePattern;
