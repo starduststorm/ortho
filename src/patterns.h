@@ -1,9 +1,6 @@
 #ifndef PATTERN_H
 #define PATTERN_H
 
-#include "ortho.h"
-#include "util.h"
-#include "palettes.h"
 #include <unistd.h>
 #include <math.h>
 #include <list>
@@ -12,112 +9,68 @@
 #include <algorithm>
 #include <unordered_set>
 
+#include "ortho.h"
+#include "util.h"
+#include "palettes.h"
+
 class Pattern {
-  protected:
-    long startTime = -1;
-    long stopTime = -1;
-    Pattern *subPattern = NULL;
+private:  
+  long startTime = -1;
+  long stopTime = -1;
+  long lastUpdateTime = -1;
+public:
+  DrawingContext ctx;
+  int expectedRunDuration = 40;
+  Pattern() { }
+  Pattern(int expectedDuration) : expectedRunDuration(expectedDuration) { }
+  virtual ~Pattern() { }
 
-    virtual void stopCompleted() {
-      if (!readyToStop()) {
-        logf("WARNING: stopped %s before subPattern was stopped", description());
-      }
-      logf("Stopped %s", description());
-      stopTime = -1;
-      startTime = -1;
-      if (subPattern) {
-        subPattern->stop();
-        delete subPattern;
-        subPattern = NULL;
-      }
-    }
+  void start() {
+    logf("Starting %s", description());
+    startTime = millis();
+    stopTime = -1;
+    setup();
+  }
 
-    virtual Pattern *makeSubPattern() {
-      return NULL;
-    }
+  void loop() {
+    update();
+    lastUpdateTime = millis();
+  }
 
-    bool readyToStop() {
-      return subPattern == NULL || subPattern->isStopped();
-    }
+  virtual bool wantsToIdleStop() {
+    return true;
+  }
 
-  public:
-    int expectedRunDuration = 60;
-    Pattern() { }
-    Pattern(int expectedDuration) : expectedRunDuration(expectedDuration) { }
-    virtual ~Pattern() { }
+  virtual bool wantsToRun() {
+    // for idle patterns that require microphone input and may opt not to run if there is no sound
+    return true;
+  }
 
-    virtual bool wantsToRun() {
-      // for idle patterns that require microphone input and may opt not to run if there is no sound
-      return true;
-    }
+  virtual void setup() { }
 
-    virtual void start() {
-      logf("Starting %s", description());
-      startTime = millis();
-      stopTime = -1;
-      setup();
-      subPattern = makeSubPattern();
-      if (subPattern) {
-        subPattern->start();
-      }
-    }
+  void stop() {
+    logf("Stopping %s", description());
+    startTime = -1;
+  }
 
-    void loop(pixel pixels[]) {
-      update(pixels);
-      if (subPattern) {
-        subPattern->update(pixels);
-      }
-    }
+  virtual void update() { }
+  
+  virtual const char *description() = 0;
 
-    virtual void setup() { }
+public:
+  bool isRunning() {
+    return startTime != -1;
+  }
 
-    virtual bool wantsToIdleStop() {
-      return true;
-    }
+  unsigned long runTime() {
+    return startTime == -1 ? 0 : millis() - startTime;
+  }
 
-    virtual void lazyStop() {
-      if (isRunning()) {
-        logf("Stopping %s", description());
-        stopTime = millis();
-      }
-      if (subPattern) {
-        subPattern->lazyStop();
-      }
-    }
+  unsigned long frameTime() {
+    return (lastUpdateTime == -1 ? 0 : millis() - lastUpdateTime);
+  }
 
-    void stop() {
-      if (subPattern) {
-        subPattern->stop();
-      }
-      stopCompleted();
-    }
-
-    bool isRunning() {
-      return startTime != -1 && isStopping() == false;
-    }
-
-    bool isStopped() {
-      return !isRunning() && !isStopping();
-    }
-
-    long runTime() {
-      return startTime == -1 ? 0 : millis() - startTime;
-    }
-
-    bool isStopping() {
-      return stopTime != -1;
-    }
-
-    virtual void update(pixel[]) = 0;
-    virtual const char *description() = 0;
-
-    // Sub patterns (for pattern mixing)
-    void setSubPattern(Pattern *pattern) {
-      subPattern = pattern;
-      if (isRunning()) {
-        subPattern->start();
-      }
-    }
+  virtual void colorModeChanged() { }
 };
 
 
@@ -134,7 +87,7 @@ class Needles : public Pattern {
     int direction;
     float speed = 1.0;
     bool active;
-    Color color;
+    CRGB color;
     int rangeMin;
     int rangeMax;
     Needle(int index, int min, int max) {
@@ -169,13 +122,6 @@ class Needles : public Pattern {
   Palette *palette;
 public:
   Needles() {
-  }
-  ~Needles() {
-    activeNeedles.clear();
-    inactiveNeedles.clear();
-  }
-  void start() {
-    Pattern::start();
     mode = random8(2);
     colorMode = random8(4);
     printf("  mode = %i, colorMode %i\n", mode, colorMode);
@@ -190,6 +136,10 @@ public:
 
       inactiveNeedles.insert(needle);
     }
+  }
+  ~Needles() {
+    activeNeedles.clear();
+    inactiveNeedles.clear();
   }
 
   Needle *getActiveNeedle() {
@@ -212,32 +162,30 @@ public:
     return needle;
   }
 
-  void update(pixel pixels[]) {
+  void update() {
     long mils = millis();
 
-    if (mode == 0 && !isStopping()) {
-      fadeDownBy(0.02);
+    if (mode == 0) {
+      fadeDownBy(0.02, ctx);
     }
 
     const float stickStartInterval = 10;
     
-    if (!isStopping()) {
-      long elapsed = mils - lastStartMillis;
-      while (elapsed > stickStartInterval) {
-        elapsed -= stickStartInterval;
-        lastStartMillis = mils;
-        
-        Needle *needle = getActiveNeedle();
-        if (!needle) continue;
+    long elapsed = mils - lastStartMillis;
+    while (elapsed > stickStartInterval) {
+      elapsed -= stickStartInterval;
+      lastStartMillis = mils;
+      
+      Needle *needle = getActiveNeedle();
+      if (!needle) continue;
 
-        if (colorMode == 0) { // rainbow
-          int hue = leader % 0x100;
-          needle->color = Color::HSB(leader % 0x100, 0xFF, 0xFF);
-        } else {  // palette
-          needle->color = palette->getRandom();
-        }
-        needle->speed = (mode == 0 ? 1 : 0.2);
+      if (colorMode == 0) { // rainbow
+        int hue = leader % 0x100;
+        needle->color = CRGB::HSB(leader % 0x100, 0xFF, 0xFF);
+      } else {  // palette
+        needle->color = palette->getRandom();
       }
+      needle->speed = (mode == 0 ? 1 : 0.2);
     }
     
     bool hasActiveNeedles = false;
@@ -248,10 +196,10 @@ public:
 
         int index = (needle->val + needleLength * needle->stickIndex);
         
-        Color color = needle->color;
+        CRGB color = needle->color;
         
         if (mode == 0) {
-          set(index, color);
+          ctx.leds[index] = color;
         } else {
           for (int j = 0; j < needleLength; ++j) {
             float bright = 0;
@@ -262,7 +210,11 @@ public:
               bright = 0;
             }
 
-            set(needle->stickIndex * needleLength + j, color, bright);
+            CRGB c = CRGB::Black;
+            c.r = color.r * bright;
+            c.g = color.g * bright;
+            c.b = color.b * bright;
+            ctx.leds[needle->stickIndex * needleLength + j] = c;
           }
         }
         needle->tick();
@@ -275,14 +227,6 @@ public:
     }
 
     leader++;
-    if (isStopping() && !hasActiveNeedles) {
-      stopCompleted();
-    }
-  }
-  void stopCompleted() {
-    activeNeedles.clear();
-    inactiveNeedles.clear();
-    Pattern::stopCompleted();
   }
 
   const char *description() {
@@ -311,7 +255,7 @@ class Bits : public Pattern {
       { .maxBits = 50, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 5, .color = monotone }, // chill streamers
       { .maxBits = 50, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 5, .color = fromPalette}, // palette chill streamers
       { .maxBits = 80, .bitLifespan = 3000, .updateInterval = 16, .fadedown = 20, .color = monotone }, // moving dots
-      { .maxBits = 140, .bitLifespan = 3000, .updateInterval = 350, .fadedown = 5, .color = monotone }, // OG bits pattern
+      // { .maxBits = 140, .bitLifespan = 3000, .updateInterval = 350, .fadedown = 5, .color = monotone }, // OG bits pattern  TOO SLOW
       { .maxBits = 12, .bitLifespan = 3000, .updateInterval = 4, .fadedown = 40, .color = monotone }, // chase
     };
 
@@ -322,11 +266,11 @@ class Bits : public Pattern {
         unsigned int pos;
         bool alive;
         unsigned long lastTick;
-        Color color;
-        Bit(Color color) : color(Color::Black) {
+        CRGB color;
+        Bit(CRGB color) : color(CRGB::Black) {
           reset(color);
         }
-        void reset(Color color) {
+        void reset(CRGB color) {
           birthdate = millis();
           alive = true;
           pos = random() % NUM_LEDS;
@@ -358,31 +302,12 @@ class Bits : public Pattern {
     BitsPreset preset;
     char constPreset;
 
-    Color color;
+    CRGB color;
     Palette *palette;
   public:
-    Bits(int constPreset = -1) : color(Color::Black) {
+    Bits(int constPreset = -1) : color(CRGB::Black) {
       this->constPreset = constPreset;
-    }
-  private:
 
-    Color getBitColor() {
-      switch (preset.color) {
-        case monotone:
-          return color; break;
-        case fromPalette:
-          return palette->getRandom(); break;
-        case mix:
-          return Color::HSB(random8(), random8(200, 255), 0xFF); break;
-        case white:
-          return Color::White;
-        case pink:
-        default:
-          return Color::DeepPink;
-      }
-    }
-
-    void setup() {
       uint8_t pick;
       if (constPreset != -1 && constPreset < ARRAY_SIZE(presets)) {
         pick = constPreset;
@@ -395,32 +320,49 @@ class Bits : public Pattern {
 
       palette = paletteManager.randomPalette();
       // for monotone
-      color = Color::HSB(random8(), random8(8) == 0 ? 0 : random8(200, 255), 255);
+      color = CRGB::HSB(random8(), random8(8) == 0 ? 0 : random8(200, 255), 255);
 
       bits = (Bit *)calloc(preset.maxBits, sizeof(Bit));
       numBits = 0;
     }
 
-    void update(pixel pixels[]) {
+    ~Bits() {
+      free(bits);
+    }
+  private:
+    CRGB getBitColor() {
+      switch (preset.color) {
+        case monotone:
+          return color; break;
+        case fromPalette:
+          return palette->getRandom(); break;
+        case mix:
+          return CRGB::HSB(random8(), random8(200, 255), 0xFF); break;
+        case white:
+          return CRGB::White;
+        case pink:
+        default:
+          return CRGB::DeepPink;
+      }
+    }
+
+    void update() {
       unsigned long mils = millis();
-      bool hasAliveBit = false;
       for (unsigned int i = 0; i < numBits; ++i) {
         Bit *bit = &bits[i];
         if (bit->age() > preset.bitLifespan) {
           bit->alive = false;
         }
         if (bit->alive) {
-          Color c = Color::Black.blendWith(bit->color, bit->ageBrightness());
-          pixels[bit->pos].r = c.red;
-          pixels[bit->pos].g = c.green;
-          pixels[bit->pos].b = c.blue;
+          CRGB c = CRGB::Black.blendWith(bit->color, bit->ageBrightness());
+          ctx.leds[bit->pos].r = c.red;
+          ctx.leds[bit->pos].g = c.green;
+          ctx.leds[bit->pos].b = c.blue;
           if (mils - bit->lastTick > preset.updateInterval) {
             bit->tick();
           }
-          hasAliveBit = true;
-        } else if (!isStopping()) {
+        } else {
           bit->reset(getBitColor());
-          hasAliveBit = true;
         }
       }
 
@@ -428,20 +370,7 @@ class Bits : public Pattern {
         bits[numBits++] = Bit(getBitColor());
         lastBitCreation = mils;
       }
-      if (!isStopping()) {
-        fadeDownBy(1./preset.fadedown);
-      } else if (!hasAliveBit) {
-        stopCompleted();
-      }
-    }
-
-    void stopCompleted() {
-      Pattern::stopCompleted();
-      if (bits) {
-        free(bits);
-        bits = NULL;
-        numBits = 0;
-      }
+      fadeDownBy(1./preset.fadedown, ctx);
     }
 
     const char *description() {
@@ -457,7 +386,7 @@ class Undulation : public Pattern {
     static const long lifespan = 2000;
     int stick;
     float amount;
-    Color color;
+    CRGB color;
     long startMillis;
     bool dead = false;
     Highlight() {
@@ -481,16 +410,15 @@ class Undulation : public Pattern {
 
   int submode;
   int baseHue;
-
-  void start() {
-    Pattern::start();
+public:
+  Undulation() {
     highlights.clear();
     submode = random8(2); // FIXME: don't use submode 2 cause it's boring
     printf("  submode %i\n", submode);
     baseHue = random8();
   }
 
-  void update(pixel pixels[]) {
+  void update() {
 
     float t = runTime() / 1000.;
     for (int stick = 0; stick < NUM_LEDS / STICK_LENGTH; ++stick) {
@@ -507,26 +435,24 @@ class Undulation : public Pattern {
         int bright = fmax(0, util_cos(t, 0.01 * stick + 0.1 * i, period, -30, 0x60));
         int index = STICK_LENGTH * stick + i;
 
-        Color c;
+        CRGB c;
         if (submode == 0) {
-          c = Color::HSB(hue, sat, bright);
+          c = CRGB::HSB(hue, sat, bright);
         } else {
-          c = Color::HSB(baseHue, 0xFF, bright);
+          c = CRGB::HSB(baseHue, 0xFF, bright);
         }
         
-        pixels[index].r = c.red;
-        pixels[index].g = c.green;
-        pixels[index].b = c.blue;
+        ctx.leds[index] = c;
       }
     }
 
     if (millis() - lastHighlight > 140) {
       Highlight h;
       if (submode == 0) {
-        h.color = Color::HSB(random8(), 0xFF, 0xFF);
+        h.color = CRGB::HSB(random8(), 0xFF, 0xFF);
         highlights.push_back(h);
       } else if (submode == 1) {
-        h.color = Color::HSB(0, 0, 0xFF);
+        h.color = CRGB::HSB(0, 0, 0xFF);
         highlights.push_back(h);
       } else if (submode == 2) {
         // no highlights
@@ -537,18 +463,15 @@ class Undulation : public Pattern {
     for (std::vector<Highlight>::iterator it = highlights.begin(); it < highlights.end(); ++it) {
       for (int i = 0; i < STICK_LENGTH; ++i) {
         int index = it->stick * STICK_LENGTH + i;
-        pixels[index].r = it->amount * it->color.red + (1-it->amount) * pixels[index].r;
-        pixels[index].g = it->amount * it->color.green + (1-it->amount) * pixels[index].g;
-        pixels[index].b = it->amount * it->color.blue + (1-it->amount) * pixels[index].b;
+        ctx.leds[index].r = it->amount * it->color.red + (1-it->amount) * ctx.leds[index].r;
+        ctx.leds[index].g = it->amount * it->color.green + (1-it->amount) * ctx.leds[index].g;
+        ctx.leds[index].b = it->amount * it->color.blue + (1-it->amount) * ctx.leds[index].b;
       }
 
       it->tick();
       if (it->dead) {
         it = highlights.erase(it);
       }
-    }
-    if (isStopping()) {
-      stopCompleted();
     }
   }
   const char *description() {
@@ -566,10 +489,8 @@ class RaverPlaid : public Pattern {
   float freq_g = default_freq;
   float freq_b = default_freq;
   int mode;
-
-  void start() {
-    Pattern::start();
-
+public:
+  RaverPlaid() {
     if (random8(2) == 0) {
       printf("  Default frequencies\n");
       freq_r = default_freq;
@@ -585,7 +506,7 @@ class RaverPlaid : public Pattern {
     mode = random8(5);
   }
 
-  void update(pixel pixels[]) {
+  void update() {
     // Demo code from Open Pixel Control
     // http://github.com/zestyping/openpixelcontrol
     int n_pixels = NUM_LEDS;
@@ -612,12 +533,9 @@ class RaverPlaid : public Pattern {
         b = (mode == 4 ? 0 : b);
 
         const float brightness = 0.7;
-        pixels[ii].r = r * brightness;
-        pixels[ii].g = g * brightness;
-        pixels[ii].b = b * brightness;
-    }
-    if (isStopping()) {
-      stopCompleted();
+        ctx.leds[ii].r = r * brightness;
+        ctx.leds[ii].g = g * brightness;
+        ctx.leds[ii].b = b * brightness;
     }
     // usleep(1. / fps * 1000000);
   }
@@ -656,9 +574,6 @@ class Breathe : public Pattern {
   int generator = -1;
 public:
   Breathe() : Pattern(21) {
-  }
-private:
-  void start() {
     sticks.clear();
     lastValue = -1;
     mode = 1;//random8(2);
@@ -670,10 +585,10 @@ private:
       hueOffset = random8();
     }
     printf("  hue offset %i\n", hueOffset);
-    Pattern::start();
   }
+private:
 
-  void linearBreathe(pixel pixels[]) {
+  void linearBreathe() {
     float value = util_cos(runTime(), 0, 8000, 0, STRIP_LENGTH);
     if (lastValue == -1) {
       lastValue = value;
@@ -692,21 +607,21 @@ private:
 
       int saturation = (hueOffset == -1 ? 0 : 200);
 
-      Color prelightColor = Color::HSB(hueOffset + index, saturation, prelightBrightness);
-      Color lightColor = Color::HSB(hueOffset + index, saturation, 0xFF);
+      CRGB prelightColor = CRGB::HSB(hueOffset + index, saturation, prelightBrightness);
+      CRGB lightColor = CRGB::HSB(hueOffset + index, saturation, 0xFF);
 
-      pixels[prelightIndex].r = prelightColor.red;
-      pixels[prelightIndex].g = prelightColor.green;
-      pixels[prelightIndex].b = prelightColor.blue;
+      ctx.leds[prelightIndex].r = prelightColor.red;
+      ctx.leds[prelightIndex].g = prelightColor.green;
+      ctx.leds[prelightIndex].b = prelightColor.blue;
       
-      pixels[lightIndex].r = lightColor.red;
-      pixels[lightIndex].g = lightColor.green;
-      pixels[lightIndex].b = lightColor.blue;
+      ctx.leds[lightIndex].r = lightColor.red;
+      ctx.leds[lightIndex].g = lightColor.green;
+      ctx.leds[lightIndex].b = lightColor.blue;
     }
     lastValue = value;
   }
 
-  void popcornBreathe(pixel pixels[]) {
+  void popcornBreathe() {
     // use generators for group of size 96
     int numSticks = NUM_LEDS / STICK_LENGTH;
     const int generators[] = {37, 53, 67, 83, 101, 137, 163};
@@ -752,27 +667,23 @@ private:
         continue;
       }
       int index = it->stick;
-      Color lightColor = Color::HSB(hueOffset, saturation, it->amount() * 0xFF);
+      CRGB lightColor = CRGB::HSB(hueOffset, saturation, it->amount() * 0xFF);
       for (int i = 0; i < STICK_LENGTH; ++i) {
-        pixels[index * STICK_LENGTH + i].r = alphaLimiter * lightColor.red;
-        pixels[index * STICK_LENGTH + i].g = alphaLimiter * lightColor.green;
-        pixels[index * STICK_LENGTH + i].b = alphaLimiter * lightColor.blue;
+        ctx.leds[index * STICK_LENGTH + i].r = alphaLimiter * lightColor.red;
+        ctx.leds[index * STICK_LENGTH + i].g = alphaLimiter * lightColor.green;
+        ctx.leds[index * STICK_LENGTH + i].b = alphaLimiter * lightColor.blue;
       }
     }
     lastValue = value;
   }
 
-  void update(pixel pixels[]) {
+  void update() {
     if (mode == 0) {
-      linearBreathe(pixels);
+      linearBreathe();
     } else {
-      popcornBreathe(pixels);
+      popcornBreathe();
     }
-    if (!isStopping()) {
-      fadeDownBy(0.02);
-    } else {
-      stopCompleted();
-    }
+    fadeDownBy(0.02, ctx);
   }
 
   const char *description() {

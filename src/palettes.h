@@ -571,13 +571,13 @@ private:
       uint8_t green = *paletteData++;
       uint8_t blue = *paletteData++;
       positions.push_back(position);
-      colors.push_back(Color::RGB(red, green, blue));
+      colors.push_back(CRGB::RGB(red, green, blue));
     } while (position != 255);
   }
 
 public:
   std::vector<uint8_t> positions;
-  std::vector<Color> colors;
+  std::vector<CRGB> colors;
 
   int count() {
     return positions.size();
@@ -598,7 +598,7 @@ public:
   ~Palette() {
   }
     
-  Color getColor(int position) {
+  CRGB getColor(int position) {
     position = mod_wrap(position, 0x100);
     
     int colorIndex = 1;
@@ -608,14 +608,14 @@ public:
         break;
       }
     }
-    Color c1 = colors[colorIndex - 1];
-    Color c2 = colors[colorIndex];
+    CRGB c1 = colors[colorIndex - 1];
+    CRGB c2 = colors[colorIndex];
     float amt = (position - positions[colorIndex - 1]) / (float)(positions[colorIndex] - positions[colorIndex - 1]);
-    Color c = c1.blendWith(c2, amt);
+    CRGB c = c1.blendWith(c2, amt);
     return c;
   }
   
-  Color getRandom() {
+  CRGB getRandom() {
     return getColor(random() % 0x100);
   }
 };
@@ -630,7 +630,7 @@ public:
 //   }
 // }
 
-static int linearBrightness(Color color) {
+static int linearBrightness(CRGB color) {
   // I'm looking at you fire_gp
   return (color.r + color.g + color.b);
 }
@@ -673,7 +673,7 @@ public:
       palette = &palettes[choice];
       belowMinBrightness = paletteHasColorBelowThreshold(palette, minBrightness);
     } while (belowMinBrightness && tries++ < 10);
-    ASSERT(tries < 10, "Tried too many times to pick a palette below threshold");
+    assert(tries < 10, "Tried too many times to pick a palette below threshold");
     logf("Picked Palette %u", choice);
     return palette;
   }

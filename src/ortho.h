@@ -8,9 +8,8 @@
 
 #include "opc/opc.h"
 #include "util.h"
+#include "drawing.h"
 
-// FIXME: need a proper drawing solution
-void set(int index, Color c, float bright);
-void set(int index, Color c);
+typedef CustomDrawingContext<NUM_LEDS, 1, CRGB, CRGB[NUM_LEDS] > DrawingContext;
 
 #endif

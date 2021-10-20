@@ -5,14 +5,9 @@
 #include <stdarg.h>
 #include <math.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof(a[0]))
-
-#if DEBUG
-#define ASSERT(expr, reason) if (!(expr)) { logf("ASSERTION FAILED: %s", reason); while (1) delay(100); }
-#else
-#define ASSERT(expr, reason) if (!(expr)) { logf("ASSERTION FAILED: %s", reason); }
-#endif
 
 #ifndef __WIRING_PI_H__
 long millis() {
@@ -27,24 +22,61 @@ long millis() {
 }
 #endif
 
-#define fadeDownBy(amt)     for (int i = 0; i < NUM_LEDS; ++i) { \
-      pixels[i].r *= (1 - amt); \
-      pixels[i].g *= (1 - amt); \
-      pixels[i].b *= (1 - amt); \
+#define fadeDownBy(amt, ctx)     for (int i = 0; i < NUM_LEDS; ++i) { \
+      ctx.leds[i].r *= (1 - amt); \
+      ctx.leds[i].g *= (1 - amt); \
+      ctx.leds[i].b *= (1 - amt); \
     }
+
+static void _logf(bool newline, const char *format, va_list argptr)
+{
+  if (strlen(format) == 0) {
+    if (newline) {
+      printf("\n");
+    }
+    return;
+  }
+  char *buf;
+  vasprintf(&buf, format, argptr);
+  if (newline) {
+    printf("%s\n", buf ? buf : "LOGF MEMORY ERROR");
+  } else {
+    printf("%s", buf ? buf : "LOGF MEMORY ERROR");
+  }
+#if DEBUG
+  fflush(stdout);
+  fflush(stderr);
+#endif
+  free(buf);
+}
 
 void logf(const char *format, ...)
 {
   va_list argptr;
   va_start(argptr, format);
-  char *buf = (char *)calloc(strlen(format) + 200, sizeof(char));
-  vsnprintf(buf, 200, format, argptr);
+  _logf(true, format, argptr);
   va_end(argptr);
-#if SERIAL_LOGGING
-  Serial.println(buf);
+}
+
+void loglf(const char *format, ...)
+{
+  va_list argptr;
+  va_start(argptr, format);
+  _logf(false, format, argptr);
+  va_end(argptr);
+}
+
+void assert_func(bool result, const char *pred, const char *reasonFormat, ...) {
+  if (!result) {
+    logf("ASSERTION FAILED: %s", pred);
+    va_list argptr;
+    va_start(argptr, reasonFormat);
+    logf(reasonFormat, argptr);
+    va_end(argptr);
+#if DEBUG
+    while (1) sleep(100);
 #endif
-  printf("%s\n", buf);
-  free(buf);
+  }
 }
 
 #define MOD_DISTANCE(a, b, m) (abs(m / 2. - fmod((3 * m) / 2 + a - b, m)))
@@ -110,6 +142,18 @@ float clamp(float x, float minn, float maxx) {
 ///
 
 // slightly cribbed from FastLED
+
+typedef uint8_t   fract8;   ///< ANSI: unsigned short _Fract
+
+
+static void nscale8x3( uint8_t& r, uint8_t& g, uint8_t& b, fract8 scale)
+{
+    uint16_t scale_fixed = scale + 1;
+    r = (((uint16_t)r) * scale_fixed) >> 8;
+    g = (((uint16_t)g) * scale_fixed) >> 8;
+    b = (((uint16_t)b) * scale_fixed) >> 8;
+}
+
 typedef struct CRGB {
   union {
     struct {
@@ -131,9 +175,7 @@ typedef struct CRGB {
 public:
   CRGB() { }
   CRGB(uint8_t r, uint8_t g, uint8_t b) : red(r), green(g), blue(b) { }
-  ~CRGB() {
-    free(_description);
-  }
+
   inline uint8_t& operator[] (uint8_t x) __attribute__((always_inline)) {
     return raw[x];
   }
@@ -142,7 +184,16 @@ public:
     return (1-amount) * a + amount * b;
   }
 
-// FIXME: make blending a drop in for FastLED
+  /// scale down a RGB to N 256ths of it's current brightness, using
+  /// 'plain math' dimming rules, which means that if the low light levels
+  /// may dim all the way to 100% black.
+  inline CRGB& nscale8 (uint8_t scaledown )
+  {
+      nscale8x3( r, g, b, scaledown);
+      return *this;
+  }
+
+  // FIXME: make blending a drop in for FastLED
   CRGB blendWith(CRGB c2, float amount) {
     amount = fmax(0.0, fmin(1.0, amount));
     uint8_t r = blend8(red, c2.red, amount);
@@ -151,17 +202,9 @@ public:
     return CRGB::RGB(r, g, b);
   }
 
-  char *description() {
-    if (_description) {
-      free(_description);
-    }
-    _description = (char *)malloc(20 * sizeof(char));
-    snprintf(_description, 20, "(%i, %i, %i)", red, green, blue);
-    return _description;
-  }
-
   static CRGB White;
   static CRGB Black;
+  static CRGB Red;
   static CRGB DeepPink;
 
   static CRGB RGB(uint8_t red, uint8_t green, uint8_t blue) {
@@ -189,16 +232,22 @@ public:
     }
     return CRGB((rp + m) * 0xFF, (gp + m) * 0xFF, (bp + m) * 0xFF);
   }
-
-private:
-  char *_description = NULL; // cache
 } CRGB;
 
 CRGB CRGB::White = CRGB::RGB(0xFF, 0xFF, 0xFF);
 CRGB CRGB::Black = CRGB::RGB(0, 0, 0);
+CRGB CRGB::Red = CRGB::RGB(0xFF, 0, 0);
 CRGB CRGB::DeepPink = CRGB::RGB(0xFF, 0x14, 0x93);
 
-typedef CRGB Color;
+inline uint8_t scale8( uint8_t i, fract8 scale)
+{
+    return (((uint16_t)i) * (1+(uint16_t)(scale))) >> 8;
+}
+
+uint8_t dim8_raw( uint8_t x)
+{
+    return scale8( x, x);
+}
 
 float easeInOut(float t)
 {
@@ -207,3 +256,6 @@ float easeInOut(float t)
 }
 
 #endif
+
+#undef assert
+#define assert(expr, reasonFormat, ...) assert_func((expr), #expr, reasonFormat, ## __VA_ARGS__);
