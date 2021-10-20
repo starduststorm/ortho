@@ -245,7 +245,7 @@ class Bits : public Pattern {
       BitColor color;
     } BitsPreset;
 
-    BitsPreset presets[8] = {
+    BitsPreset presets[7] = {
       { .maxBits = 35, .bitLifespan = 3000, .updateInterval = 35, .fadedown = 2, .color = white}, // dots enhancer
       { .maxBits = 35, .bitLifespan = 3000, .updateInterval = 45, .fadedown = 5, .color = fromPalette}, // dots enhancer
       // little too frenetic, use as trigger patterns?
