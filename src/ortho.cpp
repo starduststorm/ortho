@@ -205,12 +205,13 @@ void loop() {
   } else {
     runPatterns();
   }
-#if RASPBERRY_PI
+//#if RASPBERRY_PI
   if (0 == opc_put_pixels(sink, 0, NUM_LEDS, pixels)) {
     // Failed to connect to fadecandy, don't spam it
+    printf("opc_put_pixels failed");
     sleep(2);
   }
-#endif
+//#endif
 
   RemoteCommand command = hbl->poll(displayOn);
   if (command != none) {

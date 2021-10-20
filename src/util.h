@@ -89,6 +89,7 @@ uint8_t random8(int upperBound) {
 }
 
 uint8_t random8() {
+  // FIXME: replace with SRNG
   return random() % 0x100;
 }
 
