@@ -10,9 +10,11 @@ static const bool patternAutoRotateDefault = true;
 template <typename BufferType>
 class PatternManager {
   int patternIndex = -1;
+
   Pattern *activePattern = NULL;
   Pattern *previousActivePattern = NULL;
   const unsigned long crossfadeDuration = 1000;
+  unsigned long activePatternStart = 0;
 
   bool patternAutoRotate = patternAutoRotateDefault;
 
@@ -74,12 +76,20 @@ public:
     logf("Enable pattern autorotate");
     patternAutoRotate = true;
     patternAutorotateWelcome();
-    stopPattern();
+    prepareForNextPattern();
+  }
+
+  void prepareForNextPattern() {
+    if (activePattern) {
+      previousActivePattern = activePattern;
+      activePattern = NULL;
+    }
   }
 
   void stopPattern() {
     if (activePattern) {
-      previousActivePattern = activePattern;
+      activePattern->stop();
+      delete activePattern;
       activePattern = NULL;
     }
   }
@@ -116,7 +126,7 @@ public:
 
 private:
   bool startPatternAtIndex(int index) {
-    stopPattern();
+    prepareForNextPattern();
     auto ctor = patternConstructors[index];
     Pattern *nextPattern = ctor();
     if (startPattern(nextPattern)) {
@@ -129,9 +139,10 @@ private:
   }
 public:
   bool startPattern(Pattern *pattern) {
-    stopPattern();
+    prepareForNextPattern();
     if (pattern->wantsToRun()) {
       pattern->start();
+      activePatternStart = millis();
       activePattern = pattern;
       return true;
     } else {
@@ -153,12 +164,15 @@ public:
     }
 
     uint8_t activePatternBrightness = 0xFF;
-    if (previousActivePattern) {  
+    if (previousActivePattern || activePatternStart != 0 && millis() - activePatternStart < crossfadeDuration) {
       activePatternBrightness = (activePattern ? 0xFF * (activePattern->runTime() / (float)crossfadeDuration) : 0);
+    }
+
+    if (previousActivePattern) {  
       previousActivePattern->loop();
       previousActivePattern->ctx.blendIntoContext(ctx, BlendMode::blendBrighten, dim8_raw(0xFF - activePatternBrightness));
     }
-    
+
     if (activePattern) {
       activePattern->loop();
       activePattern->ctx.blendIntoContext(ctx, BlendMode::blendBrighten, dim8_raw(activePatternBrightness));
@@ -167,7 +181,7 @@ public:
     // time out idle patterns
     if (patternAutoRotate && activePattern != NULL && activePattern->isRunning() && activePattern->runTime() > activePattern->expectedRunDuration * 1000) {
       if (activePattern != TestIdlePattern() && activePattern->wantsToIdleStop()) {
-        stopPattern();
+        prepareForNextPattern();
       }
     }
 
