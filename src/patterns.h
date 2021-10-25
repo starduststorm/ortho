@@ -245,9 +245,9 @@ class Bits : public Pattern {
       BitColor color;
     } BitsPreset;
 
-    BitsPreset presets[7] = {
-      { .maxBits = 35, .bitLifespan = 3000, .updateInterval = 35, .fadedown = 2, .color = white}, // dots enhancer
-      { .maxBits = 35, .bitLifespan = 3000, .updateInterval = 45, .fadedown = 5, .color = fromPalette}, // dots enhancer
+    BitsPreset presets[5] = {
+      // { .maxBits = 35, .bitLifespan = 3000, .updateInterval = 35, .fadedown = 2, .color = white}, // dots enhancer
+      // { .maxBits = 35, .bitLifespan = 3000, .updateInterval = 45, .fadedown = 5, .color = fromPalette}, // dots enhancer
       // little too frenetic, use as trigger patterns?
       //      { .maxBits = 10, .bitLifespan = 3000, .updateInterval = 0, .fadedown = 20, .color = monotone }, // party streamers
       //      { .maxBits = 10, .bitLifespan = 3000, .updateInterval = 0, .fadedown = 20, .color = mix }, // multi-color party streamers
