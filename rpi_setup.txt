@@ -1,0 +1,45 @@
+# Ortho install-deps
+
+# install ortho and fadecandy
+mkdir -p ~/src
+pushd ~/src
+git clone https://github.com/starduststorm/ortho.git
+git clone https://github.com/scanlime/fadecandy.git
+popd
+
+# install homebridge
+sudo apt-get install -y nodejs gcc g++ make python net-tools npm
+sudo npm install -g --unsafe-perm homebridge
+sudo hb-service install --user homebridge
+
+# configure homebridge
+mkdir -p ~/.homebridge
+cp ~/src/ortho/homebridge_config.json .homebridge/config.json
+
+this needs to go in the middle of /etc/rc.local, but before the exit 0
+"""
+sudo /home/pi/src/fadecandy/bin/fcserver-rpi /home/pi/src/ortho/fadecandy-config.json &
+sudo -u pi /home/pi/src/ortho/bin/ortho &
+
+sudo -u pi nice -12 homebridge & 
+"""
+
+
+sudo echo  'network={
+  ssid="wifiName"
+  psk="wifiPassword"
+}' >> /etc/wpa_supplicant/wpa_supplicant.conf
+
+# or join the Wi-Fi in raspi-config
+
+
+# for platformio remote dev
+echo "PATH=$PATH:~/.platformio/penv/bin" >> .bashrc
+# takes a really long time
+pio remote agent start --share
+
+
+# to add to homebridge, be sure to run 
+sudo killall -9 homebridge
+sudo -u pi homebridge
+# manually and add the accessory to homekit
